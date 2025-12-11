@@ -1,0 +1,32 @@
+{
+  "name": "@ai-assistant/backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ai-assistant/shared": "file:../shared",
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@supabase/supabase-js": "^2.45.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/uuid": "^10.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "joi": "^18.0.2",
+    "openai": "^6.10.0",
+    "uuid": "^13.0.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.8.2"
+  }
+}
