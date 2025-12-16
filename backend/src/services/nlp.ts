@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { NLQueryRequest, NLQueryResponse, TableInfo } from '@ai-data-assistant/shared';
-import logger from '../config/logger';
+import { NLQueryRequest, NLQueryResult, TableInfo } from '@ai-assistant/shared';
+import { logger } from '../config/logger';
+import { NLQueryResponse } from '../types/legacy';
 import { MultiAgentService } from './multiagent';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
@@ -37,17 +38,17 @@ export class NLPService {
   ): Promise<NLQueryResponse> {
     try {
       logger.info('🔄 NLPService: Iniciando processamento com sistema multiagente');
-      
+
       // Primeiro tentar usar o sistema multiagente (mais rápido e confiável)
       try {
         const multiAgentResponse = await this.multiAgentService.processQuery(request, availableTables);
-        
+
         // Se a confiança for alta, usar a resposta do multiagente
         if (multiAgentResponse.confidence >= 0.7) {
           logger.info(`✅ NLPService: Usando resposta do multiagente (confiança: ${multiAgentResponse.confidence})`);
           return multiAgentResponse;
         }
-        
+
         logger.info(`⚠️ NLPService: Confiança baixa do multiagente (${multiAgentResponse.confidence}), usando IA`);
       } catch (multiAgentError) {
         logger.warn('⚠️ NLPService: Multiagente falhou, usando IA tradicional:', multiAgentError);
@@ -55,7 +56,7 @@ export class NLPService {
 
       // Fallback para IA tradicional se multiagente falhar ou tiver confiança baixa
       return await this.processWithTraditionalAI(request, availableTables);
-      
+
     } catch (error) {
       logger.error('❌ NLPService: Erro no processamento:', error);
       throw new Error('Failed to process natural language query');

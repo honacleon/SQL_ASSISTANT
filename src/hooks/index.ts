@@ -9,3 +9,4 @@ export { useChat } from './useChat';
 export { useDebounce } from './useDebounce';
 export { useShortcuts } from './useShortcuts';
 export { useHealth } from './useHealth';
+export { useSessionHistory } from './useSessionHistory';

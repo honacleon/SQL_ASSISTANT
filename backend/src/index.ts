@@ -8,7 +8,7 @@ import cors from 'cors';
 import { config, logConfig } from './config/env.config';
 import { logger } from './config/logger';
 import { authenticateApiKey, requestLogger } from './middleware';
-import { dataRoutes, healthRoutes, queryRoutes, chatRoutes } from './routes';
+import { dataRoutes, healthRoutes, queryRoutes, chatRoutes, sessionsRoutes } from './routes';
 import { chatSessionService } from './services/chat-session.service';
 
 const app = express();
@@ -25,6 +25,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/data', authenticateApiKey, dataRoutes);
 app.use('/api/data/query', authenticateApiKey, queryRoutes);
 app.use('/api/chat', authenticateApiKey, chatRoutes);
+app.use('/api/sessions', authenticateApiKey, sessionsRoutes);
 
 // Root route
 app.get('/', (_req, res) => {
@@ -41,6 +42,9 @@ app.get('/', (_req, res) => {
       chat: '/api/chat/message [POST]',
       chatHistory: '/api/chat/history/:sessionId [GET/DELETE]',
       chatSessions: '/api/chat/sessions [GET/DELETE]',
+      persistentSessions: '/api/sessions [GET/POST]',
+      persistentSession: '/api/sessions/:id [GET/PATCH/DELETE]',
+      persistentSessionMessages: '/api/sessions/:id/messages [GET/POST]',
     },
   });
 });
@@ -59,7 +63,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
     error: err.message,
     stack: err.stack,
   });
-  
+
   res.status(500).json({
     success: false,
     error: 'Internal server error',
@@ -94,9 +98,9 @@ const server = app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully...');
-  
+
   chatSessionService.shutdown();
-  
+
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);
@@ -105,9 +109,9 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully...');
-  
+
   chatSessionService.shutdown();
-  
+
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);

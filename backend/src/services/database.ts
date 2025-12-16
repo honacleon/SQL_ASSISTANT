@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
-import { TableInfo, ColumnInfo, QueryResult, FilterOption, SortOption } from '@ai-data-assistant/shared';
-import logger from '../config/logger';
+import { TableInfo, ColumnInfo, QueryResult } from '@ai-assistant/shared';
+import { logger } from '../config/logger';
+import { FilterOption, SortOption } from '../types/legacy';
 
 export class DatabaseService {
   async getTables(): Promise<TableInfo[]> {
@@ -15,11 +16,11 @@ export class DatabaseService {
 
         if (!viewError && availableTables && availableTables.length > 0) {
           logger.info(`✅ Encontradas ${availableTables.length} tabelas via available_tables view`);
-          
+
           const tableNames = availableTables
             .map((t: any) => t.table_name)
             .filter((name: string) => name && !name.startsWith('pg_'));
-          
+
           return await this.enrichTablesWithColumns(tableNames);
         }
       } catch (viewErr) {
@@ -28,7 +29,7 @@ export class DatabaseService {
 
       // Método 2: Descoberta dinâmica testando padrões comuns
       logger.info('🔍 Descobrindo tabelas dinamicamente...');
-      
+
       // Busca tabelas testando a view available_tables primeiro
       // Se não existir, não há como descobrir sem hardcode ou RPC
       logger.warn('⚠️ View "available_tables" não encontrada');
@@ -45,7 +46,7 @@ WHERE table_schema = 'public'
   AND table_name NOT LIKE 'pg_%'
 ORDER BY table_name;
       `);
-      
+
       return [];
 
     } catch (error) {
@@ -104,7 +105,7 @@ ORDER BY table_name;
           const firstRow = sampleData[0];
           for (const [columnName, value] of Object.entries(firstRow)) {
             let columnType = 'text';
-            
+
             if (typeof value === 'string') {
               columnType = 'text';
             } else if (typeof value === 'number') {
@@ -169,7 +170,7 @@ ORDER BY table_name;
 
       for (const [columnName, value] of Object.entries(firstRow)) {
         let columnType = 'unknown';
-        
+
         if (typeof value === 'string') {
           columnType = 'text';
         } else if (typeof value === 'number') {

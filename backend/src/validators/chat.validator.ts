@@ -42,9 +42,10 @@ export const validateSessionIdParam = (
   res: Response,
   next: NextFunction
 ): void => {
-  const { sessionId } = req.params;
+  // Routes use :id not :sessionId
+  const { id } = req.params;
 
-  if (!sessionId || !uuidValidate(sessionId)) {
+  if (!id || !uuidValidate(id)) {
     res.status(400).json({
       success: false,
       error: 'Invalid session ID format (must be valid UUID)'

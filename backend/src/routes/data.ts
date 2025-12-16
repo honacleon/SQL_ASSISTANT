@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { DatabaseService } from '../services/database';
-import { FilterOption, SortOption, ApiResponse } from '@ai-data-assistant/shared';
-import logger from '../config/logger';
+import { logger } from '../config/logger';
+import { FilterOption, SortOption, ApiResponse } from '../types/legacy';
 import Joi from 'joi';
 
 const router = Router();

@@ -51,6 +51,20 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Premium Gold/Champagne palette
+        gold: {
+          50: '#fdf9e7',
+          100: '#faf0c5',
+          200: '#f5e08a',
+          300: '#ecc94b',
+          400: '#d4a418',
+          500: '#b88a14',
+          600: '#8f6b10',
+          700: '#664d0c',
+          800: '#3d2e07',
+          900: '#1f1703',
+        },
+        champagne: '#d4c9a3',
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -66,10 +80,30 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "shimmer": {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "glow-pulse": {
+          "0%, 100%": { boxShadow: "0 0 5px rgba(212, 164, 24, 0.3)" },
+          "50%": { boxShadow: "0 0 20px rgba(212, 164, 24, 0.6)" },
+        },
+        "fade-in-up": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in-right": {
+          "0%": { opacity: "0", transform: "translateX(20px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "shimmer": "shimmer 2s linear infinite",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "fade-in-up": "fade-in-up 0.3s ease-out",
+        "slide-in-right": "slide-in-right 0.3s ease-out",
       },
     },
   },

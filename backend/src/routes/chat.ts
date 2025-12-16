@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { NLPService } from '../services/nlp';
 import { DatabaseService } from '../services/database';
-import { NLQueryRequest, ApiResponse, ChatMessage } from '@ai-data-assistant/shared';
-import { generateId } from '@ai-data-assistant/shared';
-import logger from '../config/logger';
+import { NLQueryRequest, ChatMessage } from '@ai-assistant/shared';
+import { logger } from '../config/logger';
+import { ApiResponse, generateId, LegacyChatMessage } from '../types/legacy';
 import Joi from 'joi';
 
 const router = Router();
@@ -11,7 +11,7 @@ const nlpService = new NLPService();
 const databaseService = new DatabaseService();
 
 // In-memory chat history (in production, use Redis or database)
-const chatHistory = new Map<string, ChatMessage[]>();
+const chatHistory = new Map<string, LegacyChatMessage[]>();
 
 // Validation schema
 const chatSchema = Joi.object({
@@ -59,14 +59,14 @@ router.post('/message', async (req, res) => {
 
       // Create NL query request
       const nlRequest: NLQueryRequest = {
-        message,
+        query: message,  // Changed from 'message' to 'query'
         context: {
           ...context,
-          availableTables: availableTables.map(t => t.name),
-          previousQueries: history
-            .filter(msg => msg.queryGenerated)
-            .slice(-3) // Last 3 queries for context
-            .map(msg => msg.queryGenerated!)
+          availableTables: availableTables.map(t => ({ name: t.name, description: t.description })),
+          // recentQueries: history
+          //   .filter(msg => msg.queryGenerated)
+          //   .slice(-3)
+          //   .map(msg => msg.queryGenerated!)
         }
       };
 
@@ -75,7 +75,7 @@ router.post('/message', async (req, res) => {
 
       // ⚡ FAST PATH: Se confiança é alta (>= 0.9), aceita mesmo sem SQL (resposta conversacional)
       const isConversational = !nlResponse.sqlQuery && nlResponse.confidence >= 0.9;
-      
+
       // Só retorna erro se confiança baixa E não é conversacional
       if (!isConversational && (!nlResponse.sqlQuery || nlResponse.confidence < 0.3)) {
         const assistantMessage: ChatMessage = {
@@ -107,7 +107,7 @@ Algumas sugestões:
       // O multiagente JÁ executou a query e formatou a resposta!
       // NÃO precisamos executar novamente
       const chatResponse = nlResponse.explanation;
-      
+
       // Para compatibilidade com o frontend, criamos um queryResult vazio
       const queryResult = {
         data: [],
@@ -118,7 +118,7 @@ Algumas sugestões:
       };
 
       // Create assistant message
-      const assistantMessage: ChatMessage = {
+      const assistantMessage: LegacyChatMessage = {
         id: generateId(),
         content: chatResponse,
         role: 'assistant',

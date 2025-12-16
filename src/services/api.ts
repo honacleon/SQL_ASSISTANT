@@ -41,7 +41,7 @@ export class ApiError extends Error {
  * Instância Axios configurada
  */
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -55,11 +55,11 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const apiKey = import.meta.env.VITE_API_KEY;
-    
+
     if (apiKey && config.headers) {
       config.headers['X-API-Key'] = apiKey;
     }
-    
+
     return config;
   },
   (error: AxiosError) => {
@@ -196,7 +196,96 @@ const api = {
   async getHealth(): Promise<HealthStatus> {
     const { data } = await apiClient.get<HealthStatus>('/api/health');
     return data;
-  }
+  },
+
+  // ==================== Persistent Sessions Endpoints ====================
+
+  /**
+   * GET /api/sessions
+   * Lista todas as sessões persistentes
+   */
+  async listSessions(): Promise<{
+    id: string;
+    title: string;
+    tableContext: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }[]> {
+    const { data } = await apiClient.get('/api/sessions');
+    return data.data || [];
+  },
+
+  /**
+   * POST /api/sessions
+   * Cria uma nova sessão persistente
+   */
+  async createSession(title?: string, tableContext?: string): Promise<{
+    id: string;
+    title: string;
+    tableContext: string | null;
+    createdAt: string;
+  }> {
+    const { data } = await apiClient.post('/api/sessions', { title, tableContext });
+    return data.data;
+  },
+
+  /**
+   * GET /api/sessions/:id
+   * Recupera uma sessão com suas mensagens
+   */
+  async getSession(sessionId: string): Promise<{
+    id: string;
+    title: string;
+    tableContext: string | null;
+    messages: ChatMessage[];
+  }> {
+    const { data } = await apiClient.get(`/api/sessions/${sessionId}`);
+    // Convert timestamps to Date objects
+    const messages = (data.data?.messages || []).map((m: any) => ({
+      ...m,
+      timestamp: new Date(m.timestamp || m.createdAt),
+    }));
+    return { ...data.data, messages };
+  },
+
+  /**
+   * DELETE /api/sessions/:id
+   * Exclui uma sessão e suas mensagens
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await apiClient.delete(`/api/sessions/${sessionId}`);
+  },
+
+  /**
+   * PATCH /api/sessions/:id
+   * Atualiza título ou contexto de uma sessão
+   */
+  async updateSession(sessionId: string, updates: { title?: string; tableContext?: string }): Promise<void> {
+    await apiClient.patch(`/api/sessions/${sessionId}`, updates);
+  },
+
+  /**
+   * POST /api/sessions/:id/messages
+   * Adiciona mensagem a uma sessão persistente
+   */
+  async addSessionMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    metadata?: Record<string, unknown>
+  ): Promise<{
+    id: string;
+    role: string;
+    content: string;
+    createdAt: string;
+  }> {
+    const { data } = await apiClient.post(`/api/sessions/${sessionId}/messages`, {
+      role,
+      content,
+      metadata,
+    });
+    return data.data;
+  },
 };
 
 export { apiClient, api };

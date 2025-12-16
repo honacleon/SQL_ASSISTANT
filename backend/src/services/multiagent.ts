@@ -1,5 +1,6 @@
-import { NLQueryRequest, NLQueryResponse, TableInfo } from '@ai-data-assistant/shared';
-import logger from '../config/logger';
+import { NLQueryRequest, TableInfo } from '@ai-assistant/shared';
+import { logger } from '../config/logger';
+import { NLQueryResponse } from '../types/legacy';
 
 // Interfaces para o sistema multiagente
 interface AgentResponse {
@@ -20,12 +21,12 @@ interface ConversationContext {
 class CoordinatorAgent {
   async processQuery(request: NLQueryRequest, tables: TableInfo[], context: ConversationContext): Promise<NLQueryResponse> {
     logger.info('🔄 CoordinatorAgent: Iniciando processamento multiagente');
-    
+
     try {
       // 1. Agente de Schema - Analisa o schema e identifica tabelas relevantes
       const schemaAgent = new SchemaAgent();
       const schemaAnalysis = await schemaAgent.analyzeSchema(request.message, tables, context);
-      
+
       if (!schemaAnalysis.success) {
         logger.warn('❌ SchemaAgent falhou, usando fallback');
         return this.fallbackResponse(request.message);
@@ -34,7 +35,7 @@ class CoordinatorAgent {
       // 2. Agente SQL - Gera a query SQL
       const sqlAgent = new SQLAgent();
       const sqlResult = await sqlAgent.generateSQL(request.message, schemaAnalysis.data, context);
-      
+
       if (!sqlResult.success) {
         logger.warn('❌ SQLAgent falhou, usando fallback');
         return this.fallbackResponse(request.message);
@@ -43,7 +44,7 @@ class CoordinatorAgent {
       // 3. Agente Analista - Valida e otimiza a query
       const analystAgent = new AnalystAgent();
       const analysis = await analystAgent.analyzeQuery(sqlResult.data.sql, schemaAnalysis.data, context);
-      
+
       // 4. Agente Formatador - Prepara a resposta final
       const formatterAgent = new FormatterAgent();
       const finalResponse = await formatterAgent.formatResponse(
@@ -53,7 +54,7 @@ class CoordinatorAgent {
       );
 
       logger.info(`✅ CoordinatorAgent: Processamento concluído com confiança ${finalResponse.confidence}`);
-      
+
       return finalResponse;
 
     } catch (error) {
@@ -87,11 +88,11 @@ class CoordinatorAgent {
 class SchemaAgent {
   async analyzeSchema(userQuery: string, tables: TableInfo[], context: ConversationContext): Promise<AgentResponse> {
     logger.info('📊 SchemaAgent: Analisando schema do banco de dados');
-    
+
     try {
       // Identificar tabelas relevantes baseadas na query do usuário
       const relevantTables = this.identifyRelevantTables(userQuery, tables, context);
-      
+
       if (relevantTables.length === 0) {
         return {
           success: false,
@@ -102,7 +103,7 @@ class SchemaAgent {
 
       // Analisar relações entre tabelas
       const tableRelationships = this.analyzeTableRelationships(relevantTables);
-      
+
       // Identificar colunas mais relevantes
       const keyColumns = this.identifyKeyColumns(userQuery, relevantTables);
 
@@ -173,13 +174,13 @@ class SchemaAgent {
 
     for (const table of tables) {
       // Verificar colunas de chave estrangeira
-      const foreignKeys = table.columns.filter(col => 
+      const foreignKeys = table.columns.filter(col =>
         col.name.includes('_id') || col.name === 'user_id' || col.name === 'product_id'
       );
 
       for (const fk of foreignKeys) {
-        const relatedTable = tables.find(t => 
-          t.name === fk.name.replace('_id', '') || 
+        const relatedTable = tables.find(t =>
+          t.name === fk.name.replace('_id', '') ||
           t.name === fk.name.replace('_id', 's')
         );
 
@@ -229,7 +230,7 @@ class SchemaAgent {
     if (tables.length === 1) return tables[0].name;
 
     const query = userQuery.toLowerCase();
-    
+
     // Priorizar tabelas baseadas na query
     if (query.includes('usuário') || query.includes('user')) return 'users';
     if (query.includes('produto') || query.includes('product')) return 'products';
@@ -243,16 +244,16 @@ class SchemaAgent {
 class SQLAgent {
   async generateSQL(userQuery: string, schemaAnalysis: any, context: ConversationContext): Promise<AgentResponse> {
     logger.info('💾 SQLAgent: Gerando query SQL');
-    
+
     try {
       const { relevantTables, keyColumns, primaryTable } = schemaAnalysis;
-      
+
       // Determinar o tipo de query baseado na intenção do usuário
       const queryType = this.identifyQueryType(userQuery);
-      
+
       // Gerar a query SQL apropriada
       const sql = this.generateAppropriateSQL(userQuery, queryType, primaryTable, keyColumns, context);
-      
+
       return {
         success: true,
         data: {
@@ -297,10 +298,10 @@ class SQLAgent {
   }
 
   private generateAppropriateSQL(
-    userQuery: string, 
-    queryType: string, 
-    primaryTable: string, 
-    keyColumns: string[], 
+    userQuery: string,
+    queryType: string,
+    primaryTable: string,
+    keyColumns: string[],
     context: ConversationContext
   ): string {
     const baseTable = primaryTable || 'users';
@@ -311,7 +312,7 @@ class SQLAgent {
 
       case 'SELECT_ORDERED':
         // Tentar encontrar coluna de data para ordenação
-        const dateColumn = keyColumns.find(col => 
+        const dateColumn = keyColumns.find(col =>
           col.includes('created_at') || col.includes('date') || col.includes('timestamp')
         );
         const orderColumn = dateColumn ? dateColumn.split('.')[1] : 'id';
@@ -358,7 +359,7 @@ class SQLAgent {
 class AnalystAgent {
   async analyzeQuery(sql: string, schemaAnalysis: any, context: ConversationContext): Promise<AgentResponse> {
     logger.info('🔍 AnalystAgent: Analisando e validando query SQL');
-    
+
     try {
       const suggestions: string[] = [];
       let confidence = 0.9;
@@ -403,16 +404,16 @@ class AnalystAgent {
   private isValidSQL(sql: string): boolean {
     // Validação básica de sintaxe SQL
     const sqlUpper = sql.toUpperCase();
-    return sqlUpper.startsWith('SELECT') && 
-           !sqlUpper.includes('DROP') && 
-           !sqlUpper.includes('DELETE') &&
-           !sqlUpper.includes('UPDATE');
+    return sqlUpper.startsWith('SELECT') &&
+      !sqlUpper.includes('DROP') &&
+      !sqlUpper.includes('DELETE') &&
+      !sqlUpper.includes('UPDATE');
   }
 
   private validateTables(sql: string, availableTables: TableInfo[]): { valid: boolean; invalidTable?: string } {
     const tableNames = availableTables.map(t => t.name.toLowerCase());
     const sqlTables = sql.match(/(?:FROM|JOIN)\s+(\w+)/gi) || [];
-    
+
     for (const tableRef of sqlTables) {
       const tableName = tableRef.replace(/(FROM|JOIN)\s+/i, '').toLowerCase();
       if (!tableNames.includes(tableName)) {
@@ -444,13 +445,13 @@ class AnalystAgent {
     let optimized = sql;
 
     // Aplicar otimizações baseadas nas sugestões
-    if (suggestions.includes('Adicionar LIMIT para evitar retornar muitos registros') && 
-        !sql.toUpperCase().includes('LIMIT')) {
+    if (suggestions.includes('Adicionar LIMIT para evitar retornar muitos registros') &&
+      !sql.toUpperCase().includes('LIMIT')) {
       optimized += ' LIMIT 100';
     }
 
     if (suggestions.includes('Considerar adicionar ORDER BY para resultados consistentes') &&
-        !sql.toUpperCase().includes('ORDER BY')) {
+      !sql.toUpperCase().includes('ORDER BY')) {
       optimized = optimized.replace(/LIMIT \d+$/, 'ORDER BY id DESC $&');
     }
 
@@ -462,14 +463,14 @@ class AnalystAgent {
 class FormatterAgent {
   async formatResponse(sql: string, suggestions: string[], context: ConversationContext): Promise<NLQueryResponse> {
     logger.info('📝 FormatterAgent: Formatando resposta final');
-    
+
     try {
       // Gerar explicação baseada na query
       const explanation = this.generateExplanation(sql, context);
-      
+
       // Calcular confiança baseada na qualidade da query
       const confidence = this.calculateConfidence(sql, suggestions);
-      
+
       // Identificar tabela sugerida
       const suggestedTable = this.identifySuggestedTable(sql);
 
@@ -584,7 +585,7 @@ export class MultiAgentService {
 
   private updateConversationContext(request: NLQueryRequest, tables: TableInfo[]) {
     this.conversationContext.availableTables = tables;
-    
+
     if (request.context?.currentTable) {
       this.conversationContext.currentTable = request.context.currentTable;
     }

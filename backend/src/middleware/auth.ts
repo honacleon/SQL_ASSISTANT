@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { ApiResponse } from '@ai-data-assistant/shared';
+
+interface ApiResponse {
+  success: boolean;
+  error?: string;
+}
 
 export interface AuthRequest extends Request {
   user?: {

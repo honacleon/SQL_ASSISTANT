@@ -3,9 +3,9 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { useTables, useTableData, useChat, useShortcuts } from '@/hooks';
+import { useTables, useTableData, useChat, useShortcuts, useSessionHistory } from '@/hooks';
 import { DataTable, DataTableColumn, SortDirection } from '@/components/data';
-import { ChatInterface } from '@/components/chat';
+import { ChatInterface, SessionList } from '@/components/chat';
 import { LoadingOverlay } from '@/components/common/LoadingOverlay';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
-import { Database, Table2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Database, Table2, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import type { ColumnInfo } from '@ai-assistant/shared';
 import toast from 'react-hot-toast';
 
@@ -42,11 +43,23 @@ interface SidebarTablesProps {
   error: Error | null;
   selectedTable: string | null;
   onSelectTable: (tableName: string) => void;
-   onPreviewTable: (tableName: string) => void;
+  onPreviewTable: (tableName: string) => void;
   onRefresh: () => void;
 }
 
-function SidebarTables({
+// ==================== Sidebar Components ====================
+
+interface SidebarTablesContentProps {
+  tables: { name: string; schema?: string }[];
+  loading: boolean;
+  error: Error | null;
+  selectedTable: string | null;
+  onSelectTable: (tableName: string) => void;
+  onPreviewTable: (tableName: string) => void;
+  onRefresh: () => void;
+}
+
+function SidebarTablesContent({
   tables,
   loading,
   error,
@@ -54,100 +67,184 @@ function SidebarTables({
   onSelectTable,
   onPreviewTable,
   onRefresh,
-}: SidebarTablesProps) {
+}: SidebarTablesContentProps) {
   return (
-    <Card className="w-64 h-full flex flex-col border-r rounded-none">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base">Tabelas</CardTitle>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onRefresh}
-            disabled={loading}
-          >
-            <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
-          </Button>
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-gold-400" />
+          <span className="text-sm font-medium">Tabelas</span>
         </div>
-        {tables.length > 0 && (
-          <CardDescription className="text-xs">
-            {tables.length} tabela{tables.length !== 1 ? 's' : ''} disponíve{tables.length !== 1 ? 'is' : 'l'}
-          </CardDescription>
-        )}
-      </CardHeader>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 hover:bg-gold-400/10 hover:text-gold-400 transition-colors"
+          onClick={onRefresh}
+          disabled={loading}
+        >
+          <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+        </Button>
+      </div>
 
-      <Separator />
+      {tables.length > 0 && (
+        <p className="text-xs text-muted-foreground px-3 pb-2">
+          {tables.length} tabela{tables.length !== 1 ? 's' : ''} disponíve{tables.length !== 1 ? 'is' : 'l'}
+        </p>
+      )}
 
-      <CardContent className="flex-1 p-0 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="flex flex-col p-2 gap-1">
-            {/* Loading state */}
-            {loading && (
-              <>
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </>
-            )}
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col px-2 pb-2 gap-1">
+          {/* Loading state */}
+          {loading && (
+            <>
+              <Skeleton className="h-8 w-full bg-secondary/50 animate-shimmer" />
+              <Skeleton className="h-8 w-full bg-secondary/50 animate-shimmer" />
+              <Skeleton className="h-8 w-full bg-secondary/50 animate-shimmer" />
+              <Skeleton className="h-8 w-full bg-secondary/50 animate-shimmer" />
+            </>
+          )}
 
-            {/* Error state */}
-            {!loading && error && (
-              <div className="flex flex-col items-center gap-2 p-4 text-center">
-                <AlertCircle className="h-8 w-8 text-destructive" />
-                <p className="text-xs text-destructive">
-                  Erro ao carregar tabelas
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {error.message}
-                </p>
-              </div>
-            )}
+          {/* Error state */}
+          {!loading && error && (
+            <div className="flex flex-col items-center gap-2 p-4 text-center">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="text-xs text-destructive">
+                Erro ao carregar tabelas
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {error.message}
+              </p>
+            </div>
+          )}
 
-            {/* Empty state */}
-            {!loading && !error && tables.length === 0 && (
-              <div className="flex flex-col items-center gap-2 p-4 text-center">
-                <Table2 className="h-8 w-8 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">
-                  Nenhuma tabela encontrada
-                </p>
-              </div>
-            )}
+          {/* Empty state */}
+          {!loading && !error && tables.length === 0 && (
+            <div className="flex flex-col items-center gap-2 p-4 text-center">
+              <Table2 className="h-8 w-8 text-gold-400/30" />
+              <p className="text-xs text-muted-foreground">
+                Nenhuma tabela encontrada
+              </p>
+            </div>
+          )}
 
-            {/* Tables list */}
-            {!loading && !error && tables.map((table) => (
-              <div
-                key={table.name}
-                className="flex items-center gap-2"
+          {/* Tables list */}
+          {!loading && !error && tables.map((table) => (
+            <div
+              key={table.name}
+              className="flex items-center gap-2 group"
+            >
+              <Button
+                variant={selectedTable === table.name ? "secondary" : "ghost"}
+                className={cn(
+                  "justify-start text-sm h-8 flex-1 transition-all duration-200",
+                  selectedTable === table.name
+                    ? "font-medium bg-gold-400/15 text-gold-400 border border-gold-400/20"
+                    : "hover:bg-gold-400/10 hover:text-gold-400"
+                )}
+                onClick={() => onSelectTable(table.name)}
               >
-                <Button
-                  variant={selectedTable === table.name ? "secondary" : "ghost"}
-                  className={cn(
-                    "justify-start text-sm h-8 flex-1",
-                    selectedTable === table.name && "font-medium"
-                  )}
-                  onClick={() => onSelectTable(table.name)}
-                >
-                  <Table2 className="h-3 w-3 mr-2 flex-shrink-0" />
-                  <span className="truncate">{table.name}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => onPreviewTable(table.name)}
-                >
-                  Preview
-                </Button>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
+                <Table2 className={cn(
+                  "h-3 w-3 mr-2 flex-shrink-0 transition-colors",
+                  selectedTable === table.name ? "text-gold-400" : "text-muted-foreground group-hover:text-gold-400"
+                )} />
+                <span className="truncate">{table.name}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-border/50 hover:border-gold-400/30 hover:bg-gold-400/10 hover:text-gold-400 transition-all"
+                onClick={() => onPreviewTable(table.name)}
+              >
+                Preview
+              </Button>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+interface SidebarProps {
+  // Tables props
+  tables: { name: string; schema?: string }[];
+  loadingTables: boolean;
+  errorTables: Error | null;
+  selectedTable: string | null;
+  onSelectTable: (tableName: string) => void;
+  onPreviewTable: (tableName: string) => void;
+  onRefreshTables: () => void;
+  // Sessions props
+  sessions: import('@/hooks/useSessionHistory').SessionSummary[];
+  loadingSessions: boolean;
+  activeSessionId: string | null;
+  onSelectSession: (id: string) => void;
+  onCreateSession: () => void;
+  onDeleteSession: (id: string) => void;
+}
+
+function Sidebar({
+  tables,
+  loadingTables,
+  errorTables,
+  selectedTable,
+  onSelectTable,
+  onPreviewTable,
+  onRefreshTables,
+  sessions,
+  loadingSessions,
+  activeSessionId,
+  onSelectSession,
+  onCreateSession,
+  onDeleteSession,
+}: SidebarProps) {
+  return (
+    <Card className="w-64 h-full flex flex-col border-r border-gold-400/10 rounded-none bg-background/95">
+      <Tabs defaultValue="tables" className="flex-1 flex flex-col">
+        <div className="px-3 pt-3">
+          <TabsList className="grid w-full grid-cols-2 bg-secondary/50">
+            <TabsTrigger
+              value="tables"
+              className="text-xs data-[state=active]:bg-gold-400/20 data-[state=active]:text-gold-400"
+            >
+              <Database className="h-3 w-3 mr-1" />
+              Tabelas
+            </TabsTrigger>
+            <TabsTrigger
+              value="sessions"
+              className="text-xs data-[state=active]:bg-gold-400/20 data-[state=active]:text-gold-400"
+            >
+              <MessageSquare className="h-3 w-3 mr-1" />
+              Conversas
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <Separator className="bg-border/50 mt-3" />
+
+        <TabsContent value="tables" className="flex-1 m-0 overflow-hidden">
+          <SidebarTablesContent
+            tables={tables}
+            loading={loadingTables}
+            error={errorTables}
+            selectedTable={selectedTable}
+            onSelectTable={onSelectTable}
+            onPreviewTable={onPreviewTable}
+            onRefresh={onRefreshTables}
+          />
+        </TabsContent>
+
+        <TabsContent value="sessions" className="flex-1 m-0 overflow-hidden">
+          <SessionList
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            loading={loadingSessions}
+            onSelectSession={onSelectSession}
+            onCreateSession={onCreateSession}
+            onDeleteSession={onDeleteSession}
+          />
+        </TabsContent>
+      </Tabs>
     </Card>
   );
 }
@@ -184,23 +281,27 @@ function DataPanel({
   onRefresh,
 }: DataPanelProps) {
   return (
-    <Card className="flex flex-col h-full">
-      <CardHeader className="pb-2">
+    <Card className="flex flex-col h-full border-gold-400/10 bg-card/95">
+      <CardHeader className="pb-2 bg-gradient-to-r from-gold-400/5 to-transparent">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               {tableName ? (
                 <>
-                  <Table2 className="h-4 w-4" />
-                  {tableName}
+                  <Table2 className="h-4 w-4 text-gold-400" />
+                  <span className="text-gold-400">{tableName}</span>
                 </>
               ) : (
-                'Selecione uma tabela'
+                <span className="text-muted-foreground">Selecione uma tabela</span>
               )}
             </CardTitle>
             {tableName && !error && (
               <CardDescription className="text-xs">
-                {total > 0 ? `${total} registro${total !== 1 ? 's' : ''}` : 'Sem registros'}
+                {total > 0 ? (
+                  <span className="text-gold-400/70">{total} registro{total !== 1 ? 's' : ''}</span>
+                ) : (
+                  'Sem registros'
+                )}
               </CardDescription>
             )}
             {error && (
@@ -215,7 +316,7 @@ function DataPanel({
               size="sm"
               onClick={onRefresh}
               disabled={loading}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 border-gold-400/20 hover:bg-gold-400/10 hover:text-gold-400 hover:border-gold-400/40 transition-all"
             >
               <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
               <span className="text-xs">Atualizar</span>
@@ -224,12 +325,12 @@ function DataPanel({
         </div>
       </CardHeader>
 
-      <Separator />
+      <Separator className="bg-border/50" />
 
       <CardContent className="flex-1 p-4 overflow-hidden">
         {!tableName ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-            <Database className="h-16 w-16 opacity-20" />
+            <Database className="h-16 w-16 text-gold-400/20" />
             <p className="text-sm">Selecione uma tabela na barra lateral para visualizar os dados</p>
           </div>
         ) : (
@@ -267,6 +368,19 @@ export function DashboardPage() {
     refetch: refetchTables,
   } = useTables();
 
+  // ==================== Sessions Hook ====================
+  const {
+    sessions,
+    activeSessionId,
+    activeSession,
+    loading: loadingSessions,
+    createSession,
+    deleteSession,
+    switchSession,
+    addMessage: persistMessage,
+    updateSessionTitle,
+  } = useSessionHistory();
+
   // ==================== Selected Table State ====================
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
 
@@ -302,7 +416,7 @@ export function DashboardPage() {
   } = useChat(sessionId);
 
   // ==================== Derived State ====================
-  
+
   // Convert columns to DataTable format
   const columns = useMemo(() => mapColumnsToDataTable(previewColumns), [previewColumns]);
 
@@ -322,12 +436,35 @@ export function DashboardPage() {
   }, [setPreviewSort]);
 
   const handleSendMessage = useCallback(async (message: string) => {
+    // Make sure we have an active session
+    if (!activeSessionId || !activeSession) {
+      toast.error('Selecione ou crie uma conversa primeiro');
+      return;
+    }
+
     try {
-      await sendMessage(message, { currentTable: selectedTable || undefined });
+      // 1. Save user message to Supabase
+      await persistMessage('user', message);
+
+      // 2. Send to AI and get response
+      const response = await sendMessage(message, { currentTable: selectedTable || undefined });
+
+      if (response?.message) {
+        // 3. Save assistant response to Supabase
+        await persistMessage('assistant', response.message.content, response.message.metadata);
+
+        // 4. Auto-update title based on first user message
+        const totalMessages = activeSession.messages.length;
+        if (totalMessages === 0 && message.length > 0) {
+          const autoTitle = message.length > 50 ? message.substring(0, 47) + '...' : message;
+          await updateSessionTitle(activeSessionId, autoTitle);
+        }
+      }
     } catch (error) {
+      console.error('Error sending message:', error);
       toast.error('Erro ao enviar mensagem');
     }
-  }, [sendMessage, selectedTable]);
+  }, [activeSessionId, activeSession, persistMessage, sendMessage, selectedTable, updateSessionTitle]);
 
   const handlePreviewTable = useCallback((tableName: string) => {
     setPreviewTable(tableName);
@@ -355,14 +492,20 @@ export function DashboardPage() {
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <SidebarTables
+      <Sidebar
         tables={tables}
-        loading={loadingTables}
-        error={errorTables}
+        loadingTables={loadingTables}
+        errorTables={errorTables}
         selectedTable={selectedTable}
         onSelectTable={handleSelectTable}
         onPreviewTable={handlePreviewTable}
-        onRefresh={refetchTables}
+        onRefreshTables={refetchTables}
+        sessions={sessions}
+        loadingSessions={loadingSessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={switchSession}
+        onCreateSession={() => createSession()}
+        onDeleteSession={deleteSession}
       />
 
       {/* Main Content */}
@@ -371,17 +514,19 @@ export function DashboardPage() {
           <Card className="h-full flex flex-col">
             <div className="flex-1 overflow-hidden p-4">
               <ChatInterface
-                messages={messages}
+                messages={activeSession?.messages || []}
                 loading={loadingChat}
                 errorMessage={errorChat?.message}
                 onSendMessage={handleSendMessage}
                 onClearHistory={handleClearHistory}
                 currentTable={selectedTable || undefined}
-                disabled={!selectedTable}
+                disabled={!activeSessionId}
                 placeholder={
-                  selectedTable
-                    ? `Pergunte algo sobre a tabela "${selectedTable}"...`
-                    : 'Selecione uma tabela para começar...'
+                  !activeSessionId
+                    ? 'Selecione ou crie uma conversa para começar...'
+                    : selectedTable
+                      ? `Pergunte algo sobre a tabela "${selectedTable}"...`
+                      : 'Faça uma pergunta sobre seus dados...'
                 }
               />
             </div>

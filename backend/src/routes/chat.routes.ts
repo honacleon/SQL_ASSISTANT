@@ -9,12 +9,12 @@ import { aiService, databaseService } from '../services';
 import { chatSessionService } from '../services/chat-session.service';
 import { logger } from '../config/logger';
 import { chatMessageSchema, validateSessionIdParam } from '../validators/chat.validator';
-import type { 
-  ChatMessage, 
-  ChatMessageRequest, 
+import type {
+  ChatMessage,
+  ChatMessageRequest,
   ChatMessageResponse,
   NLQueryResult,
-  QueryResult 
+  QueryResult
 } from '@ai-assistant/shared';
 import type { ColumnInfo } from '@ai-assistant/shared';
 
@@ -177,10 +177,87 @@ router.post('/message', async (req: Request, res: Response) => {
           });
           assistantContent = nlResult.explanation || 'Não consegui listar os nomes agora.';
         }
+      } else if (targetTable) {
+        // Detectar pedidos de colunas específicas (email, telefone, etc)
+        const wantsEmail = /e-?mails?|correio/i.test(request.message);
+        const wantsPhone = /telefone|phone|celular|contato/i.test(request.message);
+        const wantsAll = /todos|todas|all|tudo|listar/i.test(request.message);
+
+        try {
+          const columns: ColumnInfo[] = await databaseService.getTableColumns(targetTable);
+          const data = await databaseService.getSampleData(targetTable, 20);
+
+          if (data.length > 0) {
+            // Determinar qual coluna mostrar baseado no pedido
+            let targetColumn: string | undefined;
+            let columnLabel = 'dados';
+
+            if (wantsEmail) {
+              targetColumn = columns.find((c) => c.name.toLowerCase().includes('email'))?.name;
+              columnLabel = 'emails';
+            } else if (wantsPhone) {
+              targetColumn = columns.find((c) =>
+                c.name.toLowerCase().includes('phone') ||
+                c.name.toLowerCase().includes('telefone') ||
+                c.name.toLowerCase().includes('celular')
+              )?.name;
+              columnLabel = 'telefones';
+            }
+
+            if (targetColumn && targetColumn in data[0]) {
+              // Retornar apenas a coluna específica
+              const values = data
+                .map((row) => row[targetColumn as string])
+                .filter((v) => v !== null && v !== undefined);
+
+              const limited = values.slice(0, 15);
+              assistantContent = `Aqui estão os ${columnLabel} da tabela "${targetTable}":\n${limited.map((v, i) => `${i + 1}. ${v}`).join('\n')}${values.length > 15 ? `\n... e mais ${values.length - 15} registros.` : ''}`;
+
+              queryResult = {
+                data: data.map(row => ({ [targetColumn as string]: row[targetColumn as string] })),
+                total: values.length,
+                page: 1,
+                pageSize: 20,
+                hasMore: false
+              };
+            } else if (wantsAll) {
+              // Retornar todos os dados
+              const columnNames = columns.map(c => c.name).slice(0, 5); // máximo 5 colunas
+              assistantContent = `Aqui estão os dados da tabela "${targetTable}" (${data.length} registros):\n` +
+                data.slice(0, 10).map((row, i) =>
+                  `${i + 1}. ${columnNames.map(c => `${c}: ${row[c] || 'N/A'}`).join(', ')}`
+                ).join('\n') +
+                (data.length > 10 ? `\n... e mais ${data.length - 10} registros.` : '');
+
+              queryResult = {
+                data: data,
+                total: data.length,
+                page: 1,
+                pageSize: 20,
+                hasMore: false
+              };
+            } else {
+              // Fallback: usar explicação da IA mas tentar mostrar algum dado
+              const cleaned = stripSqlFromText(nlResult.explanation);
+              assistantContent = cleaned && cleaned.length > 20
+                ? cleaned
+                : `Encontrei ${data.length} registros na tabela "${targetTable}". O que você gostaria de saber sobre eles?`;
+            }
+          } else {
+            assistantContent = `Não encontrei dados na tabela "${targetTable}".`;
+          }
+        } catch (queryError) {
+          logger.error('Data query failed:', {
+            error: queryError instanceof Error ? queryError.message : String(queryError),
+            table: targetTable
+          });
+          const cleaned = stripSqlFromText(nlResult.explanation);
+          assistantContent = cleaned || 'Aqui está o resultado em linguagem natural.';
+        }
       } else {
-        // Para focar na resposta em linguagem natural, limpamos qualquer SQL da explicação
+        // Nenhuma tabela identificada
         const cleaned = stripSqlFromText(nlResult.explanation);
-        assistantContent = cleaned || 'Aqui está o resultado em linguagem natural.';
+        assistantContent = cleaned || 'Não consegui identificar uma tabela para buscar os dados. Pode especificar qual tabela você quer consultar?';
       }
     }
 
@@ -190,16 +267,16 @@ router.post('/message', async (req: Request, res: Response) => {
       role: 'assistant',
       content: assistantContent,
       timestamp: new Date(),
-        metadata: {
-          queryExecuted: !!queryResult,
-          sqlGenerated: nlResult.sql || undefined,
-          tableUsed: nlResult.suggestedTable || undefined,
-          confidence: nlResult.confidence,
-          executionTime: Date.now() - startTime,
-          count: executedCount,
-          listedValues
-        }
-      };
+      metadata: {
+        queryExecuted: !!queryResult,
+        sqlGenerated: nlResult.sql || undefined,
+        tableUsed: nlResult.suggestedTable || undefined,
+        confidence: nlResult.confidence,
+        executionTime: Date.now() - startTime,
+        count: executedCount,
+        listedValues
+      }
+    };
 
     // Adicionar mensagem do assistente ao histórico
     chatSessionService.addMessage(sessionId, assistantMessage);
@@ -230,7 +307,7 @@ router.post('/message', async (req: Request, res: Response) => {
 
   } catch (error) {
     const executionTime = Date.now() - startTime;
-    
+
     logger.error('Chat message processing failed:', {
       error: error instanceof Error ? error.message : String(error),
       executionTime: `${executionTime}ms`
@@ -274,11 +351,11 @@ router.get('/history/:sessionId', validateSessionIdParam, async (req: Request, r
 
     // Aplicar paginação
     let paginatedMessages = session.messages;
-    
+
     if (offset > 0) {
       paginatedMessages = paginatedMessages.slice(offset);
     }
-    
+
     if (limit !== undefined && limit > 0) {
       paginatedMessages = paginatedMessages.slice(0, limit);
     }
@@ -309,7 +386,7 @@ router.get('/history/:sessionId', validateSessionIdParam, async (req: Request, r
     logger.error('Failed to retrieve history:', {
       error: error instanceof Error ? error.message : String(error)
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve chat history'
@@ -349,7 +426,7 @@ router.delete('/history/:sessionId', validateSessionIdParam, async (req: Request
     logger.error('Failed to delete history:', {
       error: error instanceof Error ? error.message : String(error)
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to delete chat history'
@@ -377,7 +454,7 @@ router.get('/sessions', async (_req: Request, res: Response) => {
     logger.error('Failed to list sessions:', {
       error: error instanceof Error ? error.message : String(error)
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to list sessions'
@@ -413,7 +490,7 @@ router.delete('/sessions', async (_req: Request, res: Response) => {
     logger.error('Failed to clear sessions:', {
       error: error instanceof Error ? error.message : String(error)
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to clear sessions'
