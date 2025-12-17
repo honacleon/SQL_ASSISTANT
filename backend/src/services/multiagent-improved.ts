@@ -144,63 +144,120 @@ export class ImprovedMultiAgentService {
 
     // Perguntas sobre capacidades do sistema
     const capabilityPatterns = [
+      // Saudações e cumprimentos
+      {
+        pattern: /^(oi|olá|ola|hello|hi|hey|e aí|eai)$/i,
+        answer: `👋 **Olá! Sou seu assistente de dados com IA.**\n\nTenho acesso a **${tables.length} tabelas** com dados reais.\n\nPosso te ajudar a:\n• 📊 Consultar e analisar dados\n• 🔍 Filtrar e buscar registros\n• 📈 Gerar insights e relatórios\n\n💡 **Quer explorar mais?**\n- Quais tabelas estão disponíveis?\n- Quantos registros tem no total?\n- Me mostre um exemplo de consulta`
+      },
+
+      {
+        pattern: /\b(bom dia|bom-dia)\b/i,
+        answer: `☀️ **Bom dia! Pronto para analisar seus dados.**\n\nHoje tenho acesso a **${tables.length} tabelas**.\n\n💡 **Quer explorar mais?**\n- Quais tabelas estão disponíveis?\n- Mostre os dados mais recentes`
+      },
+
+      {
+        pattern: /\b(boa tarde|boa-tarde)\b/i,
+        answer: `🌤️ **Boa tarde! Como posso ajudar?**\n\nTenho **${tables.length} tabelas** prontas para análise.\n\n💡 **Quer explorar mais?**\n- Listar tabelas disponíveis\n- Fazer uma consulta rápida`
+      },
+
+      {
+        pattern: /\b(boa noite|boa-noite)\b/i,
+        answer: `🌙 **Boa noite! Em que posso ajudar?**\n\nTenho acesso a **${tables.length} tabelas** para análise.\n\n💡 **Quer explorar mais?**\n- Quais tabelas existem?\n- Mostre dados de uma tabela`
+      },
+
+      // O que você pode fazer / Capacidades
+      {
+        pattern: /\b(o que|oq).*(você|vc|voce).*(pode|consegue|faz|sabe)/i,
+        answer: `🤖 **Sou um assistente de dados inteligente!**\n\nMinhas capacidades:\n\n✅ **Consultas:** Buscar, filtrar e listar dados\n✅ **Análises:** Contagens, agregações, estatísticas\n✅ **JOINs:** Relacionar múltiplas tabelas\n✅ **Insights:** Identificar padrões e tendências\n\n**Exemplos de perguntas:**\n• "Quantos registros tem na tabela X?"\n• "Mostre os últimos 10 pedidos"\n• "Agrupe vendas por categoria"\n\n💡 **Quer explorar mais?**\n- Listar tabelas disponíveis\n- Ver um exemplo de análise`
+      },
+
+      {
+        pattern: /\b(como funciona|como usar|como te uso)/i,
+        answer: `📚 **Como me usar é simples!**\n\nBasta perguntar em **português natural**:\n\n**Exemplos:**\n• "Quantos clientes temos?"\n• "Mostre as vendas de hoje"\n• "Agrupe pedidos por status"\n• "Filtre usuários ativos"\n\nEu entendo sua pergunta, gero a query SQL e respondo com os dados!\n\n💡 **Quer explorar mais?**\n- Quais tabelas estão disponíveis?\n- Me mostre um relatório de exemplo`
+      },
+
+      // Perguntas sobre capacidades específicas
       {
         pattern: /\b(consegue|pode|sabe|faz|suporta|aceita).*(join|juntar|unir|relacionar).*(tabela)/i,
-        answer: '✅ **Sim, consigo fazer JOINs!**\n\nPosso relacionar múltiplas tabelas usando JOIN. Por exemplo:\n\n• "Mostre pedidos com dados dos clientes"\n• "Liste produtos e suas categorias"\n• "Relacione usuários com seus pedidos"\n\nBasta me dizer quais tabelas você quer relacionar!'
+        answer: '✅ **Sim, consigo fazer JOINs!**\n\nPosso relacionar múltiplas tabelas. Exemplos:\n\n• "Mostre pedidos com dados dos clientes"\n• "Liste produtos e suas categorias"\n• "Relacione usuários com seus pedidos"\n\n💡 **Quer explorar mais?**\n- Quais tabelas podem ser relacionadas?\n- Me mostre um exemplo de JOIN'
       },
 
       {
         pattern: /\b(consegue|pode|sabe|faz).*(filtrar|buscar|pesquisar|encontrar)/i,
-        answer: '✅ **Sim, posso filtrar dados!**\n\nConsigo fazer buscas e filtros como:\n\n• "Filtre usuários do estado SP"\n• "Mostre pedidos acima de R$ 1000"\n• "Busque produtos da categoria eletrônicos"\n\nQual filtro você precisa?'
+        answer: '✅ **Sim, posso filtrar dados!**\n\nConsigo fazer buscas e filtros como:\n\n• "Filtre usuários do estado SP"\n• "Mostre pedidos acima de R$ 1000"\n• "Busque produtos da categoria eletrônicos"\n\n💡 **Quer explorar mais?**\n- Quais campos posso usar para filtrar?\n- Me mostre um exemplo de busca'
       },
 
       {
         pattern: /\b(consegue|pode|sabe|faz).*(agrupar|group|agregar)/i,
-        answer: '✅ **Sim, posso agrupar dados!**\n\nConsigo fazer agregações como:\n\n• "Agrupe vendas por mês"\n• "Conte pedidos por status"\n• "Some valores por categoria"\n\nQue tipo de agrupamento você quer?'
+        answer: '✅ **Sim, posso agrupar dados!**\n\nConsigo fazer agregações como:\n\n• "Agrupe vendas por mês"\n• "Conte pedidos por status"\n• "Some valores por categoria"\n\n💡 **Quer explorar mais?**\n- Quais dimensões posso agrupar?\n- Me mostre uma análise agrupada'
       },
 
       {
         pattern: /\b(consegue|pode|sabe|faz).*(ordenar|sort|classificar)/i,
-        answer: '✅ **Sim, posso ordenar dados!**\n\nConsigo ordenar por qualquer coluna:\n\n• "Mostre os últimos 10 registros"\n• "Liste produtos do mais caro ao mais barato"\n• "Ordene por data de criação"\n\nComo você quer ordenar?'
+        answer: '✅ **Sim, posso ordenar dados!**\n\nConsigo ordenar por qualquer coluna:\n\n• "Mostre os últimos 10 registros"\n• "Liste produtos do mais caro ao mais barato"\n• "Ordene por data de criação"\n\n💡 **Quer explorar mais?**\n- Quais campos posso usar para ordenar?\n- Mostre os dados mais recentes'
       },
 
       {
         pattern: /\b(quais|que).*(funcionalidades|recursos|capacidades|comandos)/i,
-        answer: '🤖 **Minhas capacidades:**\n\n✅ Consultar dados (SELECT)\n✅ Filtrar e buscar\n✅ Agrupar e agregar\n✅ Fazer JOINs entre tabelas\n✅ Ordenar resultados\n✅ Contar registros\n✅ Calcular estatísticas\n\nPergunte em português natural!'
+        answer: '🤖 **Minhas capacidades:**\n\n✅ Consultar dados (SELECT)\n✅ Filtrar e buscar\n✅ Agrupar e agregar\n✅ Fazer JOINs entre tabelas\n✅ Ordenar resultados\n✅ Contar registros\n✅ Calcular estatísticas\n\n💡 **Quer explorar mais?**\n- Me mostre um exemplo\n- Listar tabelas disponíveis'
       },
 
+      // Agradecimentos
       {
-        pattern: /\b(oi|olá|ola|hello|hi)\b/i,
-        answer: `👋 **Olá! Sou seu assistente de dados.**\n\nTenho acesso a **${tables.length} tabelas** com dados reais.\n\nPosso te ajudar a:\n• Consultar dados\n• Fazer análises\n• Gerar relatórios\n\nQue dados você precisa?`
+        pattern: /\b(obrigado|obrigada|valeu|thanks|vlw|brigado)\b/i,
+        answer: '😊 **Por nada! Estou aqui para ajudar.**\n\n💡 **Quer explorar mais?**\n- Fazer outra consulta\n- Ver mais análises'
       },
 
+      // Ajuda
       {
-        pattern: /\b(obrigado|obrigada|valeu|thanks)\b/i,
-        answer: '😊 **Por nada! Estou aqui para ajudar.**\n\nPrecisa de mais alguma análise?'
+        pattern: /\b(ajuda|help|socorro|me ajuda|ajude)/i,
+        answer: `📚 **Como posso ajudar:**\n\n**Exemplos de perguntas:**\n• "Quantos registros tem na tabela X?"\n• "Mostre os últimos 10 pedidos"\n• "Filtre usuários de SP"\n• "Agrupe vendas por mês"\n\n**Tabelas disponíveis:** ${tables.slice(0, 5).map(t => t.name).join(', ')}${tables.length > 5 ? '...' : ''}\n\n💡 **Quer explorar mais?**\n- Listar todas as tabelas\n- Ver um exemplo de análise`
       },
 
+      // Listar tabelas
       {
-        pattern: /\b(ajuda|help|socorro)\b/i,
-        answer: `📚 **Como posso ajudar:**\n\n**Exemplos de perguntas:**\n• "Quantos registros tem na tabela X?"\n• "Mostre os últimos 10 pedidos"\n• "Filtre usuários de SP"\n• "Agrupe vendas por mês"\n\n**Tabelas disponíveis:** ${tables.slice(0, 5).map(t => t.name).join(', ')}${tables.length > 5 ? '...' : ''}`
+        pattern: /\b(quais|que|lista|mostre).*(tabelas|tables)/i,
+        answer: `📊 **Tabelas disponíveis (${tables.length}):**\n\n${tables.slice(0, 10).map((t, i) => `${i + 1}. **${t.name}** (${t.rowCount?.toLocaleString('pt-BR') || 0} registros)`).join('\n')}${tables.length > 10 ? `\n\n...e mais ${tables.length - 10} tabelas` : ''}\n\n💡 **Quer explorar mais?**\n- Quantos registros tem na tabela X?\n- Me descreva a estrutura da tabela Y`
       },
 
-      {
-        pattern: /\b(quais|que|lista).*(tabelas|tables)/i,
-        answer: `📊 **Tabelas disponíveis (${tables.length}):**\n\n${tables.slice(0, 10).map((t, i) => `${i + 1}. **${t.name}** (${t.rowCount?.toLocaleString('pt-BR') || 0} registros)`).join('\n')}${tables.length > 10 ? `\n\n...e mais ${tables.length - 10} tabelas` : ''}\n\nQual tabela você quer consultar?`
-      },
-
+      // Quem é você
       {
         pattern: /\b(quem|who).*(voce|você|vc|es|are you)/i,
-        answer: '🤖 **Sou um assistente de dados com IA.**\n\nUso um sistema de **5 agentes especializados** para:\n• Entender suas perguntas\n• Gerar SQL otimizado\n• Analisar resultados\n• Responder em linguagem natural\n\nPowered by Claude Sonnet 4 🚀'
+        answer: '🤖 **Sou um assistente de dados com IA.**\n\nUso um sistema de **5 agentes especializados** para:\n• Entender suas perguntas\n• Gerar SQL otimizado\n• Analisar resultados\n• Responder em linguagem natural\n\nPowered by Claude Sonnet 4 🚀\n\n💡 **Quer explorar mais?**\n- O que você pode fazer?\n- Mostre suas capacidades'
+      },
+
+      // Descrever / Explicar tabela
+      {
+        pattern: /\b(descreva|explique|estrutura|colunas|campos).*(tabela|table)\s+(\w+)/i,
+        answer: (match: RegExpMatchArray) => {
+          const tableName = match[3]?.toLowerCase();
+          const table = tables.find(t => t.name.toLowerCase() === tableName);
+          if (table) {
+            const cols = table.columns.slice(0, 10).map(c => `• **${c.name}** (${c.type})`).join('\n');
+            return `📋 **Estrutura da tabela ${table.name}:**\n\nRegistros: **${table.rowCount?.toLocaleString('pt-BR') || 0}**\n\n**Colunas:**\n${cols}${table.columns.length > 10 ? `\n...e mais ${table.columns.length - 10} colunas` : ''}\n\n💡 **Quer explorar mais?**\n- Mostre os últimos 10 registros dessa tabela\n- Quantos registros tem nela?`;
+          }
+          return null; // Não encontrou a tabela
+        }
       },
     ];
 
     for (const { pattern, answer } of capabilityPatterns) {
-      if (pattern.test(text)) {
+      const match = text.match(pattern);
+      if (match) {
         logger.info(`✅ Fast Path: Match encontrado! Padrão: ${pattern}`);
+
+        // Suporte para answer como função (para padrões dinâmicos)
+        let finalAnswer: string | null;
+        if (typeof answer === 'function') {
+          finalAnswer = answer(match);
+          if (!finalAnswer) continue; // Se retornou null, tenta próximo padrão
+        } else {
+          finalAnswer = answer;
+        }
+
         return {
           sqlQuery: '',
-          explanation: answer,
+          explanation: finalAnswer,
           confidence: 1.0,
           suggestedTable: undefined
         };
@@ -629,7 +686,7 @@ RESPONDA APENAS EM JSON VÁLIDO (sem markdown):
     // LOG CRÍTICO: Verificar o que está sendo recebido
     logger.info('📊 Analyst recebeu:', JSON.stringify(queryResult.results[0], null, 2));
 
-    const prompt = `Você é o Agente Analyst especialista em análise de dados de negócio.
+    const prompt = `Você é o Agente Analyst especialista em análise de dados de negócio com foco em RESPOSTAS PROATIVAS.
 
 DADOS ANALISADOS:
 ${JSON.stringify(queryResult.results, null, 2)}
@@ -638,13 +695,19 @@ CONTEXTO DA SOLICITAÇÃO:
 Pergunta original: "${originalMessage}"
 Intenção: ${JSON.stringify(intention)}
 
-REGRAS ESTRITAS:
-1. Insights DEVEM ser baseados APENAS nos dados fornecidos
-2. NÃO faça suposições ou inferências além dos dados
-3. Use APENAS métricas quantificáveis
-4. Máximo de 3 insights por análise
-5. Máximo de 2 recomendações por análise
-6. NÃO use linguagem subjetiva ou emocional
+⚠️ REGRAS CRÍTICAS PARA RESPOSTAS PROATIVAS:
+1. NUNCA responda apenas números isolados (ex: "42")
+2. SEMPRE contextualize os dados (ex: "42 registros, distribuídos por...")
+3. Se for contagem simples, quebre por dimensões relevantes quando possível
+4. Se for listagem, destaque os top 3 e padrões identificados
+5. Use emojis moderadamente para engajamento (📊, 💡, 📈, ✅)
+6. SEMPRE termine com 2-3 sugestões de análises relacionadas
+
+FORMATO DE RESPOSTA ESPERADO:
+- Insights DEVEM ser baseados APENAS nos dados fornecidos
+- Use métricas quantificáveis
+- Máximo de 3 insights principais
+- INCLUA campo "followUpSuggestions" com 2-3 perguntas sugeridas
 
 RESPONDA EM JSON:
 {
@@ -652,22 +715,23 @@ RESPONDA EM JSON:
     {
       "metric": "nome_da_metrica",
       "value": "valor_numerico",
-      "comparison": "comparacao_com_anterior",
+      "context": "contexto adicional como distribuição ou comparação",
+      "emoji": "📊",
       "significance": "alta|media|baixa"
     }
   ],
-  "summary": "Resumo técnico dos dados (máximo 100 caracteres)",
-  "recommendations": [
-    {
-      "action": "acao_especifica",
-      "metric_target": "metrica_alvo",
-      "expected_impact": "impacto_esperado"
-    }
+  "summary": "Resumo técnico com contexto (máximo 150 caracteres)",
+  "breakdown": [
+    { "label": "Categoria A", "value": 50, "percentage": 50 }
   ],
   "key_metrics": {
-    "metric1": "valor_numerico",
-    "metric2": "valor_numerico"
-  }
+    "total": "valor",
+    "average": "valor"
+  },
+  "followUpSuggestions": [
+    "Quais são os top 5 registros?",
+    "Como esses dados se distribuem por período?"
+  ]
 }`;
 
     try {
@@ -736,7 +800,7 @@ RESPONDA EM JSON:
       return `${summary}\n\n${tableMarkdown}\n\n_Modelo usado: ${this.lastModelUsed}_`;
     }
 
-    const prompt = `Você é o Agente Formatter especialista em comunicação para chat web.
+    const prompt = `Você é o Agente Formatter especialista em comunicação para chat web com respostas PROATIVAS.
 
 ANÁLISE GERADA:
 ${JSON.stringify(analysis, null, 2)}
@@ -746,31 +810,46 @@ ${JSON.stringify(queryResult.results, null, 2)}
 
 PERGUNTA ORIGINAL: "${originalMessage}"
 
-TAREFA: Crie uma resposta CONCISA e DIRETA para chat web (não WhatsApp).
+TAREFA: Crie uma resposta CONCISA, DIRETA e PROATIVA para chat web.
 
-DIRETRIZES OBRIGATÓRIAS:
-- Seja DIRETO e OBJETIVO (máximo 800 caracteres)
-- Use emojis com moderação (máximo 3)
-- Destaque números com **negrito**
-- Se houver DADOS (array com registros), SEMPRE mostre os principais campos
-- Para listagens, mostre em formato de lista com bullets
-- NÃO faça recomendações extensas
-- Use Markdown simples
+⚠️ DIRETRIZES OBRIGATÓRIAS:
+1. Seja DIRETO e OBJETIVO (máximo 900 caracteres)
+2. Use emojis moderadamente: 📊 📈 💡 ✅ 🔢
+3. Destaque números com **negrito**
+4. NUNCA responda apenas um número isolado - sempre contextualize
+
+5. SE HOUVER BREAKDOWN (distribuição por categoria):
+   Formate assim:
+   "📊 **Total: 100 registros** distribuídos assim:
+   - Produto A: **50** (50%)
+   - Produto B: **30** (30%)
+   - Produto C: **20** (20%)"
+
+6. SEMPRE TERMINE COM SEÇÃO DE SUGESTÕES:
+   "💡 **Quer explorar mais?**
+   - Sugestão 1?
+   - Sugestão 2?"
 
 EXEMPLOS DE RESPOSTA BOA:
 
 Para contagens:
-"Temos **21 tabelas** no banco de dados. 📊"
+"📊 Encontrei **21 tabelas** no banco de dados.
+
+💡 **Quer explorar mais?**
+- Quantos registros tem em cada tabela?
+- Me mostre a estrutura de uma tabela"
 
 Para listagens com dados:
-"Aqui estão os **10 últimos registros** da tabela aug25:
+"📋 Aqui estão os **10 últimos registros** da tabela:
 
-📧 **email1@example.com** - 06/10/2025
-📧 **email2@example.com** - 05/10/2025
-📧 **email3@example.com** - 04/10/2025
-..."
+| Campo1 | Campo2 | Campo3 |
+| ... | ... | ... |
 
-IMPORTANTE: Se RESULTS contém array de dados, SEMPRE mostre os registros!
+💡 **Quer explorar mais?**
+- Filtrar por algum critério?
+- Ver estatísticas desses dados?"
+
+IMPORTANTE: Use analysis.followUpSuggestions se disponível, senão gere sugestões relevantes!
 
 RESPONDA APENAS O TEXTO FORMATADO (sem JSON):`;
 
@@ -900,12 +979,26 @@ RESPONDA APENAS O TEXTO FORMATADO (sem JSON):`;
       summary += `\n• ...e mais ${columns.length - 5} colunas`;
     }
 
-    // 💡 PRÓXIMOS PASSOS (estilo SourceTable)
-    summary += `\n\n**💡 O que você pode fazer agora:**\n`;
-    summary += `• Filtrar por qualquer coluna\n`;
-    summary += `• Agrupar os dados de outra forma\n`;
-    summary += `• Exportar para CSV\n`;
-    summary += `• Fazer análises adicionais\n`;
+    // 💡 SUGESTÕES PROATIVAS (formato padrão para parsing no frontend)
+    summary += `\n\n💡 **Quer explorar mais?**\n`;
+
+    if (operation === 'agrupamento') {
+      summary += `- Qual categoria tem mais registros?\n`;
+      summary += `- Mostre a tendência ao longo do tempo\n`;
+      summary += `- Filtre por uma categoria específica`;
+    } else if (operation === 'listagem') {
+      summary += `- Quantos registros tem no total?\n`;
+      summary += `- Filtre por um critério específico\n`;
+      summary += `- Agrupe esses dados por alguma dimensão`;
+    } else if (operation === 'filtro') {
+      summary += `- Mostre estatísticas desses registros\n`;
+      summary += `- Agrupe por outra dimensão\n`;
+      summary += `- Refine o filtro com mais critérios`;
+    } else {
+      summary += `- Mostre os últimos 10 registros\n`;
+      summary += `- Agrupe por alguma dimensão\n`;
+      summary += `- Calcule estatísticas dos dados`;
+    }
 
     return summary;
   }

@@ -7,6 +7,8 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { aiService, databaseService } from '../services';
 import { chatSessionService } from '../services/chat-session.service';
+import { contextMemoryService } from '../services/context-memory.service';
+import { quickResponsesService } from '../services/quick-responses.service';
 import { logger } from '../config/logger';
 import { chatMessageSchema, validateSessionIdParam } from '../validators/chat.validator';
 import type {
@@ -92,18 +94,61 @@ router.post('/message', async (req: Request, res: Response) => {
       hasContext: !!request.context
     });
 
-    // Buscar tabelas disponíveis para contexto
-    const tables = await databaseService.getTables();
+    // 🎯 RESOLUÇÃO DE OPÇÃO: Verificar se é uma escolha de opção (A, B, 1, 2)
+    const optionChoice = contextMemoryService.resolveOptionChoice(sessionId, request.message);
+    let messageForContext = request.message;
 
-    // Converter linguagem natural para SQL
-    const nlResult: NLQueryResult = await aiService.parseNaturalLanguage({
-      query: request.message,
-      context: {
-        availableTables: tables,
-        currentTable: request.context?.currentTable,
-        recentQueries: [] // TODO: buscar do histórico da sessão
+    if (optionChoice.isOptionChoice && optionChoice.chosenOption) {
+      logger.info(`🧠 Escolha de opção detectada: ${optionChoice.chosenOption.key}`);
+      messageForContext = optionChoice.resolvedMessage;
+
+      // Se a opção menciona uma tabela, definir como contexto
+      if (optionChoice.chosenOption.table) {
+        contextMemoryService.setCurrentTable(sessionId, optionChoice.chosenOption.table);
       }
-    });
+    }
+
+    // 🧠 MEMÓRIA CONTEXTUAL: Resolver referências contextuais
+    const contextResolution = contextMemoryService.resolveContextualMessage(
+      sessionId,
+      messageForContext
+    );
+
+    if (contextResolution.contextUsed) {
+      logger.info(`🧠 Contexto aplicado: ${contextResolution.contextInfo}`);
+    }
+
+    // Usar mensagem resolvida (com contexto injetado)
+    const messageToProcess = contextResolution.resolvedMessage;
+
+    // ⚡ FAST PATH: Tentar resposta rápida sem IA
+    const quickResponse = quickResponsesService.tryQuickResponse(messageToProcess);
+    let nlResult: NLQueryResult;
+
+    if (quickResponse) {
+      logger.info('⚡ Usando resposta rápida (Fast Path)');
+      nlResult = {
+        sql: '',
+        explanation: quickResponse.content,
+        confidence: 100,
+        requiresClarification: false,
+        suggestedTable: '',
+        metadata: undefined
+      };
+    } else {
+      // Buscar tabelas disponíveis para contexto
+      const tables = await databaseService.getTables();
+
+      // Converter linguagem natural para SQL usando IA
+      nlResult = await aiService.parseNaturalLanguage({
+        query: messageToProcess,
+        context: {
+          availableTables: tables,
+          currentTable: request.context?.currentTable,
+          recentQueries: [] // TODO: buscar do histórico da sessão
+        }
+      });
+    }
 
     // Criar mensagem do usuário
     const userMessage: ChatMessage = {
@@ -126,16 +171,166 @@ router.post('/message', async (req: Request, res: Response) => {
     // Se precisa clarificação, não executar query
     if (nlResult.requiresClarification) {
       assistantContent = nlResult.clarificationQuestion || nlResult.explanation;
+
+      // 🧠 ARMAZENAR OPÇÕES: Se a clarificação contém opções (A), (B), armazenar para resolução futura
+      contextMemoryService.setOfferedOptions(sessionId, assistantContent);
+    } else if (nlResult.sql && nlResult.confidence >= 70) {
+      // 🎯 PRIORIDADE: EXECUTAR SQL GERADO PELA IA quando confiança alta
+
+      // Helper para sugestões contextuais
+      const generateSuggestions = (table: string, queryType: string): string => {
+        const suggestions: Record<string, string[]> = {
+          count: [`Quais são os últimos 10 registros de ${table}?`, `Me mostre os dados da tabela ${table}`, `Quais colunas tem a tabela ${table}?`],
+          list: [`Quantos registros tem em ${table}?`, `Quais colunas tem a tabela ${table}?`, `Filtre os dados de ${table} por um critério`],
+          specific: [`Mostre outros campos de ${table}`, `Quantos registros tem em ${table}?`, `Quais colunas tem a tabela ${table}?`],
+          default: [`Quantos registros tem em ${table}?`, `Me mostre os últimos 10 registros de ${table}`, `Quais colunas tem a tabela ${table}?`]
+        };
+        const items = suggestions[queryType] || suggestions.default;
+        return `\n\n💡 **Quer explorar mais?**\n- ${items[0]}\n- ${items[1]}\n- ${items[2]}`;
+      };
+
+      try {
+        logger.info('Executando SQL gerado pela IA:', {
+          sql: nlResult.sql,
+          confidence: nlResult.confidence,
+          suggestedTable: nlResult.suggestedTable
+        });
+
+        const data = await databaseService.executeRawQuery<Record<string, unknown>>(nlResult.sql);
+        const targetTable = nlResult.suggestedTable || '';
+
+        if (Array.isArray(data) && data.length > 0) {
+          // Formatar resultado baseado no tipo de query
+          const columns = Object.keys(data[0]);
+
+          if (columns.length === 1) {
+            // Coluna única - listar valores
+            const columnName = columns[0];
+            const values = data.map(row => row[columnName]).filter(v => v !== null);
+
+            if (columnName === 'count' || columnName === 'total') {
+              // Resultado de COUNT
+              executedCount = Number(values[0]);
+              assistantContent = `📊 **${executedCount} registro${executedCount === 1 ? '' : 's'}** encontrado${executedCount === 1 ? '' : 's'}${targetTable ? ` na tabela **${targetTable}**` : ''}.${targetTable ? generateSuggestions(targetTable, 'count') : ''}`;
+            } else {
+              // Lista de valores de uma coluna
+              const formattedList = values.map((v, i) => `${i + 1}. ${v}`).join('\n');
+              assistantContent = `📋 **${columnName} dos ${values.length} registro${values.length === 1 ? '' : 's'}${targetTable ? ` de ${targetTable}` : ''}:**\n\n${formattedList}${targetTable ? generateSuggestions(targetTable, 'specific') : ''}`;
+              listedValues = values.map(String);
+            }
+          } else {
+            // Múltiplas colunas - formatar como tabela
+            const displayColumns = columns.slice(0, 5);
+            const formattedRows = data.map((row, i) => {
+              const values = displayColumns.map(col => `**${col}**: ${row[col] ?? 'N/A'}`).join(' | ');
+              return `${i + 1}. ${values}`;
+            });
+
+            assistantContent = `📋 **${data.length} registro${data.length === 1 ? '' : 's'}${targetTable ? ` de ${targetTable}` : ''}:**\n\n${formattedRows.join('\n')}${targetTable ? generateSuggestions(targetTable, 'list') : ''}`;
+          }
+
+          queryResult = {
+            data: data,
+            total: data.length,
+            page: 1,
+            pageSize: data.length,
+            hasMore: false
+          };
+        } else if (Array.isArray(data) && data.length === 0) {
+          assistantContent = `❌ Não encontrei resultados para sua consulta${targetTable ? ` na tabela "${targetTable}"` : ''}.`;
+        } else {
+          assistantContent = nlResult.explanation || 'Query executada com sucesso.';
+        }
+      } catch (sqlError) {
+        logger.error('Erro ao executar SQL da IA:', {
+          error: sqlError instanceof Error ? sqlError.message : String(sqlError),
+          sql: nlResult.sql
+        });
+        // Fallback para heurísticas se SQL falhar
+        assistantContent = nlResult.explanation || 'Não consegui executar a consulta.';
+      }
     } else {
-      // Heurística simples: se o usuário perguntou quantidade/total e temos tabela sugerida, contar registros
-      const wantsCount = /quantos?|quantidade|total|n[úu]mero/i.test(request.message);
-      const wantsNames = /nomes?|names?/i.test(request.message);
-      const targetTable = nlResult.suggestedTable || request.context?.currentTable;
+      // Heurísticas para diferentes tipos de perguntas (fallback)
+      const wantsCount = /quantos?|quantidade|total|n[úu]mero/i.test(messageToProcess);
+      const wantsNames = /nomes?|names?/i.test(messageToProcess);
+      const wantsLastRecords = /[úu]ltimos?(\s+\d+)?(\s+registros?|\s+dados?)?/i.test(messageToProcess);
+      const wantsShowData = /mostre|mostra|listar?|exibir?|ver\s+(os\s+)?dados?/i.test(messageToProcess);
+      const wantsColumns = /colunas?|campos?|estrutura/i.test(messageToProcess);
+
+      // 🎯 DETECTAR COLUNA ESPECÍFICA PEDIDA
+      const wantsEmail = /e-?mails?|correios?/i.test(messageToProcess);
+      const wantsPhone = /telefones?|phones?|celulares?|contatos?/i.test(messageToProcess);
+      const wantsSpecificColumn = wantsEmail || wantsPhone || wantsNames;
+
+      // Mapear para nome de coluna provável
+      let requestedColumn: string | undefined;
+      let columnLabel = 'dados';
+      if (wantsEmail) {
+        requestedColumn = 'email';
+        columnLabel = 'emails';
+      } else if (wantsPhone) {
+        requestedColumn = 'phone';
+        columnLabel = 'telefones';
+      } else if (wantsNames) {
+        requestedColumn = 'name';
+        columnLabel = 'nomes';
+      }
+
+      // 🔢 EXTRAIR NÚMERO ESPECÍFICO DE REGISTROS
+      // Padrões: "5 últimos", "últimos 5", "10 registros", "3 emails"
+      const numberPatterns = [
+        /(\d+)\s*[úu]ltimos?/i,           // "5 últimos"
+        /[úu]ltimos?\s*(\d+)/i,           // "últimos 5"
+        /(\d+)\s*(registros?|dados?)/i,   // "10 registros"
+        /(\d+)\s*(e-?mails?|nomes?|telefones?)/i, // "5 emails"
+        /primeiros?\s*(\d+)/i,            // "primeiros 5"
+        /(\d+)\s*primeiros?/i,            // "5 primeiros"
+      ];
+
+      let recordLimit = 10; // default
+      for (const pattern of numberPatterns) {
+        const match = messageToProcess.match(pattern);
+        if (match) {
+          recordLimit = parseInt(match[1], 10);
+          break;
+        }
+      }
+
+      // Determinar tabela alvo (usar contexto inferido se disponível)
+      const targetTable = nlResult.suggestedTable || contextResolution.inferredTable || request.context?.currentTable;
+
+      // Helper para gerar sugestões contextuais
+      const generateSuggestions = (table: string, queryType: string): string => {
+        const suggestions: Record<string, string[]> = {
+          count: [
+            `Quais são os últimos 10 registros de ${table}?`,
+            `Me mostre os dados da tabela ${table}`,
+            `Quais colunas tem a tabela ${table}?`
+          ],
+          list: [
+            `Quantos registros tem em ${table}?`,
+            `Quais colunas tem a tabela ${table}?`,
+            `Filtre os dados de ${table} por um critério`
+          ],
+          specific: [
+            `Mostre outros campos de ${table}`,
+            `Quantos registros tem em ${table}?`,
+            `Quais colunas tem a tabela ${table}?`
+          ],
+          default: [
+            `Quantos registros tem em ${table}?`,
+            `Me mostre os últimos 10 registros de ${table}`,
+            `Quais colunas tem a tabela ${table}?`
+          ]
+        };
+        const items = suggestions[queryType] || suggestions.default;
+        return `\n\n💡 **Quer explorar mais?**\n- ${items[0]}\n- ${items[1]}\n- ${items[2]}`;
+      };
 
       if (wantsCount && targetTable) {
         try {
           executedCount = await databaseService.getTableRowCount(targetTable);
-          assistantContent = `Encontrei ${executedCount} registro${executedCount === 1 ? '' : 's'} na tabela "${targetTable}".`;
+          assistantContent = `📊 **${executedCount} registro${executedCount === 1 ? '' : 's'}** encontrado${executedCount === 1 ? '' : 's'} na tabela **${targetTable}**.${generateSuggestions(targetTable, 'count')}`;
           queryResult = {
             data: [{ count: executedCount }],
             total: executedCount,
@@ -165,7 +360,7 @@ router.post('/message', async (req: Request, res: Response) => {
 
             const limited = listedValues.slice(0, 10);
             assistantContent = limited.length > 0
-              ? `Aqui estão alguns nomes da tabela "${targetTable}": ${limited.join(', ')}${listedValues.length > 10 ? ' (mostrando os primeiros 10)' : ''}.`
+              ? `📋 **Nomes encontrados na tabela "${targetTable}":**\n${limited.map((n, i) => `${i + 1}. ${n}`).join('\n')}${listedValues.length > 10 ? `\n... e mais ${listedValues.length - 10} registros` : ''}${generateSuggestions(targetTable, 'list')}`
               : nlResult.explanation || 'Não encontrei nomes para listar.';
           } else {
             assistantContent = nlResult.explanation || 'Não encontrei coluna de nomes para listar.';
@@ -176,6 +371,79 @@ router.post('/message', async (req: Request, res: Response) => {
             table: targetTable
           });
           assistantContent = nlResult.explanation || 'Não consegui listar os nomes agora.';
+        }
+      } else if ((wantsLastRecords || wantsShowData || wantsSpecificColumn) && targetTable) {
+        // 📋 ÚLTIMOS REGISTROS, MOSTRAR DADOS ou COLUNA ESPECÍFICA
+        try {
+          const columns: ColumnInfo[] = await databaseService.getTableColumns(targetTable);
+          const data = await databaseService.getSampleData(targetTable, recordLimit);
+
+          if (data.length > 0) {
+            // 🎯 SE PEDIU COLUNA ESPECÍFICA, ENCONTRAR A COLUNA REAL
+            let targetColumn: string | undefined;
+            if (requestedColumn) {
+              // Procurar coluna que corresponda ao pedido
+              targetColumn = columns.find(c =>
+                c.name.toLowerCase().includes(requestedColumn.toLowerCase())
+              )?.name;
+            }
+
+            if (wantsSpecificColumn && targetColumn) {
+              // MOSTRAR APENAS A COLUNA ESPECÍFICA
+              const values = data.slice(0, recordLimit)
+                .map(row => row[targetColumn!])
+                .filter(v => v !== null && v !== undefined);
+
+              const formattedList = values.map((v, i) => `${i + 1}. ${v}`).join('\n');
+              assistantContent = `📧 **${columnLabel.charAt(0).toUpperCase() + columnLabel.slice(1)} dos ${values.length} ${wantsLastRecords ? 'últimos' : ''} registros de ${targetTable}:**\n\n${formattedList}${generateSuggestions(targetTable, 'specific')}`;
+
+              listedValues = values.map(String);
+            } else {
+              // MOSTRAR MÚLTIPLAS COLUNAS (comportamento original)
+              const displayColumns = columns.slice(0, 5).map(c => c.name);
+
+              const formattedRows = data.slice(0, recordLimit).map((row, i) => {
+                const values = displayColumns.map(col => `**${col}**: ${row[col] ?? 'N/A'}`).join(' | ');
+                return `${i + 1}. ${values}`;
+              });
+
+              assistantContent = `📋 **${wantsLastRecords ? 'Últimos ' : ''}${data.length} registro${data.length === 1 ? '' : 's'} de ${targetTable}:**\n\n${formattedRows.join('\n')}${generateSuggestions(targetTable, 'list')}`;
+            }
+
+            queryResult = {
+              data: data.slice(0, recordLimit),
+              total: data.length,
+              page: 1,
+              pageSize: recordLimit,
+              hasMore: data.length >= recordLimit
+            };
+          } else {
+            assistantContent = `❌ Não encontrei registros na tabela "${targetTable}".`;
+          }
+        } catch (dataError) {
+          logger.error('Data fetch failed:', {
+            error: dataError instanceof Error ? dataError.message : String(dataError),
+            table: targetTable
+          });
+          assistantContent = `❌ Erro ao buscar dados da tabela "${targetTable}".`;
+        }
+      } else if (wantsColumns && targetTable) {
+        // 📊 COLUNAS/ESTRUTURA DA TABELA
+        try {
+          const columns: ColumnInfo[] = await databaseService.getTableColumns(targetTable);
+
+          if (columns.length > 0) {
+            const columnList = columns.map(c => `• **${c.name}** (${c.type})${c.isPrimaryKey ? ' 🔑' : ''}`).join('\n');
+            assistantContent = `📊 **Estrutura da tabela ${targetTable}:**\n\n${columnList}\n\n_Total: ${columns.length} colunas_${generateSuggestions(targetTable, 'list')}`;
+          } else {
+            assistantContent = `❌ Não encontrei informações sobre a estrutura de "${targetTable}".`;
+          }
+        } catch (colError) {
+          logger.error('Column fetch failed:', {
+            error: colError instanceof Error ? colError.message : String(colError),
+            table: targetTable
+          });
+          assistantContent = `❌ Erro ao buscar estrutura da tabela "${targetTable}".`;
         }
       } else if (targetTable) {
         // Detectar pedidos de colunas específicas (email, telefone, etc)
@@ -211,7 +479,7 @@ router.post('/message', async (req: Request, res: Response) => {
                 .filter((v) => v !== null && v !== undefined);
 
               const limited = values.slice(0, 15);
-              assistantContent = `Aqui estão os ${columnLabel} da tabela "${targetTable}":\n${limited.map((v, i) => `${i + 1}. ${v}`).join('\n')}${values.length > 15 ? `\n... e mais ${values.length - 15} registros.` : ''}`;
+              assistantContent = `📧 **${columnLabel.charAt(0).toUpperCase() + columnLabel.slice(1)} da tabela "${targetTable}":**\n${limited.map((v, i) => `${i + 1}. ${v}`).join('\n')}${values.length > 15 ? `\n... e mais ${values.length - 15} registros` : ''}${generateSuggestions(targetTable, 'specific')}`;
 
               queryResult = {
                 data: data.map(row => ({ [targetColumn as string]: row[targetColumn as string] })),
@@ -223,11 +491,12 @@ router.post('/message', async (req: Request, res: Response) => {
             } else if (wantsAll) {
               // Retornar todos os dados
               const columnNames = columns.map(c => c.name).slice(0, 5); // máximo 5 colunas
-              assistantContent = `Aqui estão os dados da tabela "${targetTable}" (${data.length} registros):\n` +
+              assistantContent = `📋 **Dados da tabela "${targetTable}"** (${data.length} registros):\n` +
                 data.slice(0, 10).map((row, i) =>
-                  `${i + 1}. ${columnNames.map(c => `${c}: ${row[c] || 'N/A'}`).join(', ')}`
+                  `${i + 1}. ${columnNames.map(c => `**${c}**: ${row[c] || 'N/A'}`).join(', ')}`
                 ).join('\n') +
-                (data.length > 10 ? `\n... e mais ${data.length - 10} registros.` : '');
+                (data.length > 10 ? `\n... e mais ${data.length - 10} registros` : '') +
+                generateSuggestions(targetTable, 'list');
 
               queryResult = {
                 data: data,
@@ -237,14 +506,12 @@ router.post('/message', async (req: Request, res: Response) => {
                 hasMore: false
               };
             } else {
-              // Fallback: usar explicação da IA mas tentar mostrar algum dado
+              // Fallback: mostrar resumo do que foi encontrado com contexto
               const cleaned = stripSqlFromText(nlResult.explanation);
-              assistantContent = cleaned && cleaned.length > 20
-                ? cleaned
-                : `Encontrei ${data.length} registros na tabela "${targetTable}". O que você gostaria de saber sobre eles?`;
+              assistantContent = `📊 **${data.length} registro${data.length === 1 ? '' : 's'}** encontrado${data.length === 1 ? '' : 's'} na tabela **${targetTable}**.${generateSuggestions(targetTable, 'default')}`;
             }
           } else {
-            assistantContent = `Não encontrei dados na tabela "${targetTable}".`;
+            assistantContent = `❌ Não encontrei dados na tabela "${targetTable}".`;
           }
         } catch (queryError) {
           logger.error('Data query failed:', {
@@ -257,7 +524,7 @@ router.post('/message', async (req: Request, res: Response) => {
       } else {
         // Nenhuma tabela identificada
         const cleaned = stripSqlFromText(nlResult.explanation);
-        assistantContent = cleaned || 'Não consegui identificar uma tabela para buscar os dados. Pode especificar qual tabela você quer consultar?';
+        assistantContent = cleaned || `🤔 Não consegui identificar uma tabela para buscar os dados.\n\n💡 **Quer explorar mais?**\n- Quais tabelas estão disponíveis?\n- Me mostre os dados de uma tabela específica`;
       }
     }
 
@@ -280,6 +547,13 @@ router.post('/message', async (req: Request, res: Response) => {
 
     // Adicionar mensagem do assistente ao histórico
     chatSessionService.addMessage(sessionId, assistantMessage);
+
+    // 🧠 MEMÓRIA CONTEXTUAL: Atualizar contexto se usou uma tabela
+    const usedTable = nlResult.suggestedTable || contextResolution.inferredTable;
+    if (usedTable) {
+      contextMemoryService.setCurrentTable(sessionId, usedTable);
+      contextMemoryService.addQuery(sessionId, request.message, usedTable, executedCount);
+    }
 
     const executionTime = Date.now() - startTime;
 

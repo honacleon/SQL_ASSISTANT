@@ -2,10 +2,13 @@
  * DashboardPage - Main application page integrating tables, data, and chat
  */
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTables, useTableData, useChat, useShortcuts, useSessionHistory } from '@/hooks';
+import { useTabs } from '@/hooks/useTabs';
+import { useTabShortcuts } from '@/hooks/useTabShortcuts';
 import { DataTable, DataTableColumn, SortDirection } from '@/components/data';
 import { ChatInterface, SessionList } from '@/components/chat';
+import { TabBar } from '@/components/chat/TabBar';
 import { LoadingOverlay } from '@/components/common/LoadingOverlay';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -404,16 +407,123 @@ export function DashboardPage() {
     autoFetch: !!previewTable,
   });
 
-  // ==================== Chat Session ====================
-  const [sessionId] = useState<string>(() => crypto.randomUUID());
+  // ==================== Tab System ====================
+  const {
+    tabs,
+    activeTabId,
+    createTab,
+    closeTab,
+    closeOtherTabs,
+    closeTabsToRight,
+    activateTab,
+    renameTab,
+    togglePin,
+    setLoading,
+    setTableContext,
+    setSessionId,
+    getActiveTab,
+  } = useTabs();
 
+  // Obter sessionId da aba ativa, com fallback para sessão global
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const effectiveSessionId = activeTab?.sessionId || activeSessionId || null;
+
+  // ==================== Chat Session ====================
+  // Usa sessão da aba ou sessão global como fallback
   const {
     messages,
     sending: loadingChat,
     error: errorChat,
     sendMessage,
     clearHistory,
-  } = useChat(sessionId);
+  } = useChat(effectiveSessionId || '');
+
+  // Sincronizar tabela selecionada com aba ativa
+  useEffect(() => {
+    if (activeTabId && selectedTable) {
+      setTableContext(activeTabId, selectedTable);
+    }
+  }, [activeTabId, selectedTable, setTableContext]);
+
+  // Garantir que aba ativa tenha sessão (usando ref para evitar loop)
+  const sessionCreationRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (activeTabId && !effectiveSessionId && !sessionCreationRef.current.has(activeTabId)) {
+      // Marcar que está criando sessão para esta aba
+      sessionCreationRef.current.add(activeTabId);
+
+      // Criar sessão para aba que não tem
+      createSession().then(session => {
+        if (session && activeTabId) {
+          setSessionId(activeTabId, session.id);
+          renameTab(activeTabId, session.title || 'Chat Principal');
+        }
+      }).catch(error => {
+        console.error('Erro ao criar sessão para aba:', error);
+        sessionCreationRef.current.delete(activeTabId);
+      });
+    }
+  }, [activeTabId, effectiveSessionId]);
+
+  // Sincronizar loading da aba
+  useEffect(() => {
+    if (activeTabId) {
+      setLoading(activeTabId, loadingChat);
+    }
+  }, [activeTabId, loadingChat, setLoading]);
+
+  // Handlers de navegação de abas
+  const handleNewTab = useCallback(() => {
+    const newTab = createTab();
+    // Opcionalmente criar nova sessão
+    createSession().then(session => {
+      if (session) {
+        setSessionId(newTab.id, session.id);
+        renameTab(newTab.id, session.title || 'Nova Conversa');
+      }
+    });
+  }, [createTab, createSession, setSessionId, renameTab]);
+
+  const handleCloseTab = useCallback(() => {
+    const activeTab = getActiveTab();
+    if (activeTab && !activeTab.isPinned) {
+      closeTab(activeTab.id);
+    }
+  }, [getActiveTab, closeTab]);
+
+  const handleNextTab = useCallback(() => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+    if (currentIndex < tabs.length - 1) {
+      activateTab(tabs[currentIndex + 1].id);
+    } else if (tabs.length > 0) {
+      activateTab(tabs[0].id);
+    }
+  }, [tabs, activeTabId, activateTab]);
+
+  const handlePrevTab = useCallback(() => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+    if (currentIndex > 0) {
+      activateTab(tabs[currentIndex - 1].id);
+    } else if (tabs.length > 0) {
+      activateTab(tabs[tabs.length - 1].id);
+    }
+  }, [tabs, activeTabId, activateTab]);
+
+  const handleGoToTab = useCallback((index: number) => {
+    if (index >= 0 && index < tabs.length) {
+      activateTab(tabs[index].id);
+    }
+  }, [tabs, activateTab]);
+
+  // Atalhos de teclado para abas
+  useTabShortcuts({
+    onNewTab: handleNewTab,
+    onCloseTab: handleCloseTab,
+    onNextTab: handleNextTab,
+    onPrevTab: handlePrevTab,
+    onGoToTab: handleGoToTab,
+  });
 
   // ==================== Derived State ====================
 
@@ -472,8 +582,32 @@ export function DashboardPage() {
   }, []);
 
   const handleClearHistory = useCallback(async () => {
-    await clearHistory();
+    // Implementar confirmação antes de limpar
+    if (confirm('Tem certeza que deseja limpar todo o histórico desta conversa?')) {
+      await clearHistory();
+      toast.success('Histórico limpo');
+    }
   }, [clearHistory]);
+
+  // Handler para selecionar sessão
+  const handleSelectSession = useCallback((sessionId: string) => {
+    // Procurar se já existe aba com essa sessão
+    const existingTab = tabs.find(t => t.sessionId === sessionId);
+
+    if (existingTab) {
+      // Ativar aba existente
+      activateTab(existingTab.id);
+    } else {
+      // Criar nova aba para essa sessão
+      const newTab = createTab();
+      setSessionId(newTab.id, sessionId);
+      // Buscar título da sessão
+      const session = sessions.find(s => s.id === sessionId);
+      if (session) {
+        renameTab(newTab.id, session.title || 'Conversa');
+      }
+    }
+  }, [tabs, activateTab, createTab, setSessionId, sessions, renameTab]);
 
   // Create ref for handleSendMessage to use in shortcuts
   const handleSendMessageRef = useRef(handleSendMessage);
@@ -502,28 +636,38 @@ export function DashboardPage() {
         onRefreshTables={refetchTables}
         sessions={sessions}
         loadingSessions={loadingSessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={switchSession}
-        onCreateSession={() => createSession()}
+        activeSessionId={effectiveSessionId}
+        onSelectSession={handleSelectSession}
+        onCreateSession={handleNewTab}
         onDeleteSession={deleteSession}
       />
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Tab Bar */}
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelect={activateTab}
+          onCreate={handleNewTab}
+          onClose={closeTab}
+          onPin={togglePin}
+        />
+
         <div className="flex-1 p-4 overflow-hidden min-h-0">
           <Card className="h-full flex flex-col">
             <div className="flex-1 overflow-hidden p-4">
               <ChatInterface
-                messages={activeSession?.messages || []}
+                messages={messages}
                 loading={loadingChat}
                 errorMessage={errorChat?.message}
                 onSendMessage={handleSendMessage}
                 onClearHistory={handleClearHistory}
                 currentTable={selectedTable || undefined}
-                disabled={!activeSessionId}
+                disabled={!effectiveSessionId}
                 placeholder={
-                  !activeSessionId
-                    ? 'Selecione ou crie uma conversa para começar...'
+                  !effectiveSessionId
+                    ? 'Aguardando criar sessão...'
                     : selectedTable
                       ? `Pergunte algo sobre a tabela "${selectedTable}"...`
                       : 'Faça uma pergunta sobre seus dados...'

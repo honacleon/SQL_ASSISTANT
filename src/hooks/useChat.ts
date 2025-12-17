@@ -5,10 +5,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useApi } from './useApi';
 import api from '@/services/api';
-import type { 
-  ChatMessage, 
-  ChatMessageRequest, 
-  ChatMessageResponse 
+import type {
+  ChatMessage,
+  ChatMessageRequest,
+  ChatMessageResponse
 } from '@ai-assistant/shared';
 
 interface UseChatOptions {
@@ -19,17 +19,17 @@ interface UseChatReturn {
   // Data
   messages: ChatMessage[];
   sessionId: string | null;
-  
+
   // States
   loading: boolean;
   sending: boolean;
   error: Error | null;
-  
+
   // Last response metadata
   lastResponse: ChatMessageResponse | null;
   needsClarification: boolean;
   clarificationQuestion: string | null;
-  
+
   // Actions
   sendMessage: (message: string, context?: { currentTable?: string }) => Promise<ChatMessageResponse | null>;
   fetchHistory: () => Promise<ChatMessage[] | null>;
@@ -63,6 +63,15 @@ export function useChat(
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [lastResponse, setLastResponse] = useState<ChatMessageResponse | null>(null);
 
+  // Sync sessionId when initialSessionId changes (e.g., when switching sessions)
+  useEffect(() => {
+    if (initialSessionId !== sessionId) {
+      setSessionId(initialSessionId);
+      setMessages([]); // Clear messages when switching sessions
+      setLastResponse(null);
+    }
+  }, [initialSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // API hooks
   const sendApi = useApi(api.sendChatMessage);
   const historyApi = useApi(api.getChatHistory);
@@ -71,7 +80,7 @@ export function useChat(
   // Fetch history for current session
   const fetchHistory = useCallback(async (): Promise<ChatMessage[] | null> => {
     if (!sessionId) return null;
-    
+
     const history = await historyApi.execute(sessionId);
     if (history) {
       setMessages(history);
@@ -120,7 +129,7 @@ export function useChat(
   // Clear history for current session
   const clearHistory = useCallback(async (): Promise<void> => {
     if (!sessionId) return;
-    
+
     await deleteApi.execute(sessionId);
     setMessages([]);
     setLastResponse(null);
@@ -146,17 +155,17 @@ export function useChat(
     // Data
     messages,
     sessionId,
-    
+
     // States
     loading: historyApi.loading || deleteApi.loading,
     sending: sendApi.loading,
     error: sendApi.error || historyApi.error || deleteApi.error,
-    
+
     // Last response metadata
     lastResponse,
     needsClarification: lastResponse?.needsClarification || false,
     clarificationQuestion: lastResponse?.clarificationQuestion || null,
-    
+
     // Actions
     sendMessage,
     fetchHistory,

@@ -33,7 +33,7 @@ class AIService {
         apiKey: anthropicKey,
         model: config.ai.model || 'claude-3-5-sonnet-20241022',
         maxTokens: 2000,
-        temperature: 0.1
+        temperature: 0.3  // Mais criativa para entender nuances
       };
       logger.info('AI Service initialized with Anthropic Claude');
     } else if (openaiKey) {
@@ -44,7 +44,7 @@ class AIService {
       // Some GPT-5 style models only accept the default temperature (1). Keep it flexible but safe.
       const modelName = config.ai.model || 'gpt-4o';
       const temperature =
-        modelName.includes('gpt-5') ? 1 : 0.1;
+        modelName.includes('gpt-5') ? 1 : 0.3;  // Mais criativa para entender nuances
 
       this.providerConfig = {
         provider: 'openai',
@@ -150,6 +150,9 @@ STRICT RULES:
 3. Always include table aliases for clarity
 4. Use explicit JOIN conditions
 5. Respond ONLY with valid JSON (no markdown, no explanations outside JSON)
+6. RESPECT the exact number of records requested (use LIMIT)
+7. RESPECT the specific columns requested (don't SELECT * when user asks for specific columns)
+8. Use ORDER BY for "últimos" (latest) queries with DESC
 
 JSON RESPONSE FORMAT:
 {
@@ -181,7 +184,7 @@ EXAMPLES:
 User: "Mostre todos os usuários ativos"
 Response:
 {
-  "sql": "SELECT * FROM users WHERE status = 'active'",
+  "sql": "SELECT * FROM users u WHERE u.status = 'active'",
   "explanation": "Esta query retorna todos os registros da tabela users onde o status é 'active'",
   "confidence": 95,
   "suggestedTable": "users",
@@ -193,10 +196,40 @@ Response:
   }
 }
 
+User: "Qual o email dos 5 últimos clientes?"
+Response:
+{
+  "sql": "SELECT c.email FROM customers c ORDER BY c.created_at DESC LIMIT 5",
+  "explanation": "Esta query retorna apenas os emails dos 5 clientes mais recentes",
+  "confidence": 95,
+  "suggestedTable": "customers",
+  "requiresClarification": false,
+  "metadata": {
+    "columnsUsed": ["email"],
+    "filtersApplied": [],
+    "aggregationUsed": null
+  }
+}
+
+User: "Quais os nomes dos 3 primeiros produtos?"
+Response:
+{
+  "sql": "SELECT p.name FROM products p ORDER BY p.id ASC LIMIT 3",
+  "explanation": "Esta query retorna apenas os nomes dos 3 primeiros produtos",
+  "confidence": 95,
+  "suggestedTable": "products",
+  "requiresClarification": false,
+  "metadata": {
+    "columnsUsed": ["name"],
+    "filtersApplied": [],
+    "aggregationUsed": null
+  }
+}
+
 User: "Quantos pedidos foram feitos no último mês?"
 Response:
 {
-  "sql": "SELECT COUNT(*) as total FROM orders WHERE created_at >= CURRENT_DATE - INTERVAL '1 month'",
+  "sql": "SELECT COUNT(*) as total FROM orders o WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 month'",
   "explanation": "Esta query conta todos os pedidos criados nos últimos 30 dias",
   "confidence": 90,
   "suggestedTable": "orders",
@@ -325,17 +358,17 @@ Response:
 
     // Block dangerous keywords
     const dangerousKeywords = [
-      'drop', 'delete', 'update', 'insert', 'alter', 
-      'truncate', 'create', 'grant', 'revoke', 
+      'drop', 'delete', 'update', 'insert', 'alter',
+      'truncate', 'create', 'grant', 'revoke',
       'exec', 'execute'
     ];
 
     for (const keyword of dangerousKeywords) {
       const pattern = new RegExp(`\\b${keyword}\\b`, 'i');
       if (pattern.test(sql)) {
-        logger.error('SECURITY: Attempted to generate dangerous SQL:', { 
-          sql, 
-          keyword 
+        logger.error('SECURITY: Attempted to generate dangerous SQL:', {
+          sql,
+          keyword
         });
         throw new Error(`Dangerous SQL keyword detected: ${keyword}`);
       }
@@ -384,7 +417,7 @@ Response:
           throw new Error('Invalid JSON response from AI provider');
         }
       }
-      
+
       logger.error('Failed to extract JSON from response:', { response });
       throw new Error('Invalid JSON response from AI provider');
     }

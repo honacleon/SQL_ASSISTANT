@@ -228,6 +228,28 @@ export function useSessionHistory(): UseSessionHistoryReturn {
         fetchSessions();
     }, [fetchSessions]);
 
+    // Auto-select first session or create one if none exists
+    useEffect(() => {
+        if (!loading && sessions.length > 0 && !activeSessionId) {
+            // Selecionar automaticamente a primeira sessão não arquivada
+            const firstSession = sessions.find(s => !s.isArchived);
+            if (firstSession) {
+                switchSession(firstSession.id);
+            }
+        }
+    }, [loading, sessions, activeSessionId, switchSession]);
+
+    // Auto-create session if none exists
+    useEffect(() => {
+        if (!loading && sessions.length === 0 && !activeSessionId) {
+            createSession('Nova conversa').then(session => {
+                if (session) {
+                    switchSession(session.id);
+                }
+            });
+        }
+    }, [loading, sessions, activeSessionId]);
+
     return {
         sessions,
         activeSessionId,

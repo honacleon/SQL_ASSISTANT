@@ -6,11 +6,11 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config/env.config';
-import type { 
-  TableSummary, 
-  TableInfo, 
-  ColumnInfo, 
-  ForeignKeyInfo, 
+import type {
+  TableSummary,
+  TableInfo,
+  ColumnInfo,
+  ForeignKeyInfo,
   IndexInfo,
   FilterOperator,
   QueryFilter,
@@ -98,7 +98,7 @@ class DatabaseService {
    * Qualquer operador fora desta lista será rejeitado
    */
   private readonly ALLOWED_OPERATORS: FilterOperator[] = [
-    'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 
+    'eq', 'neq', 'gt', 'gte', 'lt', 'lte',
     'like', 'ilike', 'in', 'is'
   ];
 
@@ -115,7 +115,7 @@ class DatabaseService {
   constructor() {
     // Use service role key for schema introspection (has elevated permissions)
     const supabaseKey = config.supabase.serviceRoleKey || config.supabase.anonKey;
-    
+
     this.supabase = createClient(config.supabase.url, supabaseKey, {
       auth: {
         persistSession: false,
@@ -390,7 +390,7 @@ class DatabaseService {
    * @param query - SQL query string
    * @returns Array of result rows
    */
-  private async executeRawQuery<T>(query: string): Promise<T[]> {
+  async executeRawQuery<T>(query: string): Promise<T[]> {
     try {
       const sanitizedQuery = this.sanitizeQuery(query);
 
@@ -413,9 +413,9 @@ class DatabaseService {
       const formattedError = this.formatSupabaseError(error);
       logger.error('Raw query execution failed', {
         error: formattedError,
-        query: sanitizedQuery.substring(0, 100) + '...',
+        query: query.substring(0, 100) + '...',
       });
-      
+
       // Try alternative method as fallback
       try {
         return await this.executeQueryViaRest<T>(query);
@@ -442,12 +442,12 @@ class DatabaseService {
   private async executeQueryViaRest<T>(query: string): Promise<T[]> {
     // For information_schema queries, we can use the Supabase REST API
     // by querying the information_schema tables directly
-    
+
     // Parse the query to determine which information_schema table to query
     if (query.includes('information_schema.tables')) {
       return await this.queryInformationSchemaTables<T>();
     }
-    
+
     if (query.includes('information_schema.columns') && !query.includes('information_schema.tables')) {
       // Extract table name from query
       const tableMatch = query.match(/table_name\s*=\s*'([^']+)'/);
@@ -460,7 +460,7 @@ class DatabaseService {
     logger.error('Query type not supported without RPC function', {
       queryPreview: query.substring(0, 200),
     });
-    
+
     return [];
   }
 
@@ -486,7 +486,7 @@ class DatabaseService {
       END;
       $$;
     `);
-    
+
     return [];
   }
 
@@ -518,13 +518,13 @@ class DatabaseService {
   async testConnection(): Promise<boolean> {
     try {
       const { error } = await this.supabase.from('_test_connection_').select('*').limit(1);
-      
+
       // Even if table doesn't exist, connection is working if we get a proper error
       if (error && !error.message.includes('connection')) {
         logger.info('Database connection successful');
         return true;
       }
-      
+
       if (!error) {
         logger.info('Database connection successful');
         return true;
@@ -584,7 +584,7 @@ class DatabaseService {
     try {
       // Validate and clamp limit
       const safeLimit = Math.min(Math.max(1, limit), 100);
-      
+
       logger.debug(`Fetching sample data from ${tableName}`, { limit: safeLimit });
 
       // Use Supabase client to query the table directly
@@ -720,8 +720,8 @@ class DatabaseService {
       };
 
     } catch (error) {
-      logger.error('Error in executeSecureQuery:', { 
-        error: error instanceof Error ? error.message : String(error) 
+      logger.error('Error in executeSecureQuery:', {
+        error: error instanceof Error ? error.message : String(error)
       });
       throw error;
     }
