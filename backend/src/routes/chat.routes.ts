@@ -541,7 +541,9 @@ router.post('/message', async (req: Request, res: Response) => {
         confidence: nlResult.confidence,
         executionTime: Date.now() - startTime,
         count: executedCount,
-        listedValues
+        listedValues,
+        // Dados estruturados para visualização em gráficos (limite de 50 registros)
+        data: queryResult?.data?.slice(0, 50) as Record<string, unknown>[] | undefined
       }
     };
 

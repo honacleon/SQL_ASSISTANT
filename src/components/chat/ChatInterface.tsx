@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { TypingIndicator } from './TypingIndicator';
+import { DataViz } from '@/components/data';
 import { cn } from '@/lib/utils';
 import { Send, Trash2, Bot, User, Loader2, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -102,7 +103,13 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestio
         </div>
       )}
 
-      <div className="flex flex-col gap-2 max-w-[80%]">
+      <div className={cn(
+        "flex flex-col gap-2",
+        // Se tem dados para visualização, usar largura maior
+        !isUser && message.metadata?.data && message.metadata.data.length > 0
+          ? "max-w-[95%] min-w-[400px]"
+          : "max-w-[80%]"
+      )}>
         <div
           className={cn(
             'rounded-2xl px-3 py-2 text-sm shadow-md transition-all duration-200',
@@ -141,6 +148,17 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestio
             </div>
           )}
         </div>
+
+        {/* Visualização de dados - quando houver dados estruturados */}
+        {!isUser && message.metadata?.data && message.metadata.data.length > 0 && (
+          <div className="mt-2 w-full" style={{ minWidth: '400px', width: '100%' }}>
+            <DataViz
+              data={message.metadata.data}
+              question={message.content}
+              title={message.metadata.tableUsed || 'dados'}
+            />
+          </div>
+        )}
 
         {/* Sugestões clicáveis - apenas para mensagens do assistente */}
         {!isUser && suggestions.length > 0 && (

@@ -20,6 +20,8 @@ export interface ChatMessage {
     confidence?: number;
     executionTime?: number;
     count?: number;
+    /** Dados estruturados da resposta para visualização em gráficos */
+    data?: Record<string, unknown>[];
   };
 }
 
