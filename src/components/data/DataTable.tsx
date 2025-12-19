@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatCellValue, isIdColumn, type FormatterOptions } from '@/services/data-formatter';
+
 
 // ==================== Types ====================
 
@@ -58,22 +60,28 @@ export interface DataTableProps<T extends Record<string, unknown>> {
 
   /** Altura máxima opcional (para scroll interno) */
   maxHeight?: string;
+
+  /** Ocultar colunas de ID automaticamente */
+  hideIdColumns?: boolean;
+
+  /** Aplicar formatação inteligente (moeda, status, datas) */
+  smartFormatting?: boolean;
 }
 
 // ==================== Helper Functions ====================
 
 /**
- * Get cell value from row using accessorKey
+ * Get raw cell value from row using accessorKey
  */
-function getCellValue<T extends Record<string, unknown>>(
+function getRawValue<T extends Record<string, unknown>>(
   row: T,
   accessorKey?: keyof T | string
-): React.ReactNode {
+): unknown {
   if (!accessorKey) return null;
-  
+
   const keys = String(accessorKey).split('.');
   let value: unknown = row;
-  
+
   for (const key of keys) {
     if (value && typeof value === 'object' && key in value) {
       value = (value as Record<string, unknown>)[key];
@@ -81,13 +89,34 @@ function getCellValue<T extends Record<string, unknown>>(
       return null;
     }
   }
-  
-  // Handle different value types
+
+  return value;
+}
+
+/**
+ * Get formatted cell value from row using accessorKey
+ * Uses smart formatting when enabled
+ */
+function getCellValue<T extends Record<string, unknown>>(
+  row: T,
+  accessorKey?: keyof T | string,
+  useSmartFormatting: boolean = false
+): React.ReactNode {
+  const value = getRawValue(row, accessorKey);
+  const columnName = String(accessorKey || '');
+
+  // Smart formatting - use data-formatter service
+  if (useSmartFormatting) {
+    const formatted = formatCellValue(columnName, value);
+    return formatted.display;
+  }
+
+  // Legacy formatting
   if (value === null || value === undefined) return '-';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (value instanceof Date) return value.toLocaleDateString('pt-BR');
   if (typeof value === 'object') return JSON.stringify(value);
-  
+
   return String(value);
 }
 
@@ -107,11 +136,11 @@ function getAlignClass(align?: 'left' | 'center' | 'right'): string {
 /**
  * Sort indicator icon
  */
-function SortIndicator({ 
-  active, 
-  direction 
-}: { 
-  active: boolean; 
+function SortIndicator({
+  active,
+  direction
+}: {
+  active: boolean;
   direction: SortDirection;
 }) {
   if (!active) {
@@ -127,11 +156,11 @@ function SortIndicator({
 /**
  * Loading skeleton rows
  */
-function LoadingSkeleton<T extends Record<string, unknown>>({ 
-  columns, 
-  rows = 5 
-}: { 
-  columns: DataTableColumn<T>[]; 
+function LoadingSkeleton<T extends Record<string, unknown>>({
+  columns,
+  rows = 5
+}: {
+  columns: DataTableColumn<T>[];
   rows?: number;
 }) {
   return (
@@ -139,7 +168,7 @@ function LoadingSkeleton<T extends Record<string, unknown>>({
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <TableRow key={`skeleton-${rowIndex}`}>
           {columns.map((column) => (
-            <TableCell 
+            <TableCell
               key={`skeleton-${rowIndex}-${column.id}`}
               className={getAlignClass(column.align)}
               style={{ width: column.width }}
@@ -156,17 +185,17 @@ function LoadingSkeleton<T extends Record<string, unknown>>({
 /**
  * Empty state row
  */
-function EmptyState({ 
-  colSpan, 
-  message 
-}: { 
-  colSpan: number; 
+function EmptyState({
+  colSpan,
+  message
+}: {
+  colSpan: number;
   message: string;
 }) {
   return (
     <TableRow>
-      <TableCell 
-        colSpan={colSpan} 
+      <TableCell
+        colSpan={colSpan}
         className="h-24 text-center text-muted-foreground"
       >
         {message}
@@ -238,41 +267,48 @@ export function DataTable<T extends Record<string, unknown>>({
   onSortChange,
   emptyMessage = 'Nenhum dado encontrado.',
   maxHeight = '480px',
+  hideIdColumns = false,
+  smartFormatting = false,
 }: DataTableProps<T>) {
-  
+
+  // Filter columns if hideIdColumns is enabled
+  const visibleColumns = hideIdColumns
+    ? columns.filter(col => !isIdColumn(col.id))
+    : columns;
+
   // Handle sort click
   const handleSortClick = (column: DataTableColumn<T>) => {
     if (!column.sortable || !onSortChange) return;
-    
+
     let newDirection: SortDirection = 'asc';
-    
+
     if (sortBy === column.id) {
       // Toggle direction if same column
       newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
     }
-    
+
     onSortChange(column.id, newDirection);
   };
 
   // Check if pagination should be shown
-  const showPagination = 
-    page !== undefined && 
-    pageSize !== undefined && 
-    total !== undefined && 
+  const showPagination =
+    page !== undefined &&
+    pageSize !== undefined &&
+    total !== undefined &&
     onPageChange !== undefined &&
     total > 0;
 
   return (
     <div className="w-full rounded-md border">
       {/* Table container with scroll */}
-      <div 
+      <div
         className="overflow-x-auto"
         style={{ maxHeight }}
       >
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              {columns.map((column) => (
+              {visibleColumns.map((column) => (
                 <TableHead
                   key={column.id}
                   className={cn(
@@ -295,30 +331,30 @@ export function DataTable<T extends Record<string, unknown>>({
               ))}
             </TableRow>
           </TableHeader>
-          
+
           <TableBody>
             {/* Loading state */}
             {loading && (
-              <LoadingSkeleton columns={columns} rows={5} />
+              <LoadingSkeleton columns={visibleColumns} rows={5} />
             )}
-            
+
             {/* Empty state */}
             {!loading && data.length === 0 && (
-              <EmptyState colSpan={columns.length} message={emptyMessage} />
+              <EmptyState colSpan={visibleColumns.length} message={emptyMessage} />
             )}
-            
+
             {/* Data rows */}
             {!loading && data.length > 0 && data.map((row, rowIndex) => (
               <TableRow key={rowIndex}>
-                {columns.map((column) => (
+                {visibleColumns.map((column) => (
                   <TableCell
                     key={`${rowIndex}-${column.id}`}
                     className={getAlignClass(column.align)}
                     style={{ width: column.width }}
                   >
-                    {column.cell 
-                      ? column.cell(row) 
-                      : getCellValue(row, column.accessorKey)
+                    {column.cell
+                      ? column.cell(row)
+                      : getCellValue(row, column.accessorKey, smartFormatting)
                     }
                   </TableCell>
                 ))}
@@ -327,7 +363,7 @@ export function DataTable<T extends Record<string, unknown>>({
           </TableBody>
         </Table>
       </div>
-      
+
       {/* Pagination footer */}
       {showPagination && (
         <div className="border-t">

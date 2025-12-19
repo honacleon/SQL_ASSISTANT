@@ -58,6 +58,7 @@ interface ChatBubbleProps {
 /**
  * Extrai sugestões do conteúdo markdown
  * Procura por seção "💡 **Quer explorar mais?**" seguida de itens com "-"
+ * LEGACY: Usado como fallback quando não há sugestões do backend
  */
 const extractSuggestions = (content: string): { mainContent: string; suggestions: string[] } => {
   const suggestionMarker = '💡 **Quer explorar mais?**';
@@ -80,11 +81,30 @@ const extractSuggestions = (content: string): { mainContent: string; suggestions
   return { mainContent, suggestions };
 };
 
+/**
+ * Obtém sugestões priorizando as do backend (followUpSuggestions) 
+ * sobre as extraídas do markdown
+ */
+const getSuggestions = (message: ChatMessage): { mainContent: string; suggestions: string[] } => {
+  // Se tem sugestões do backend (geradas por IA), usar essas
+  if (message.metadata?.followUpSuggestions && message.metadata.followUpSuggestions.length > 0) {
+    // Ainda precisa limpar o markdown
+    const { mainContent } = extractSuggestions(message.content);
+    return {
+      mainContent: mainContent || message.content,
+      suggestions: message.metadata.followUpSuggestions,
+    };
+  }
+
+  // Fallback: extrair do markdown
+  return extractSuggestions(message.content);
+};
+
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestionClick }) => {
   const isUser = message.role === 'user';
   const { mainContent, suggestions } = isUser
     ? { mainContent: message.content, suggestions: [] }
-    : extractSuggestions(message.content);
+    : getSuggestions(message);
 
   return (
     <motion.div

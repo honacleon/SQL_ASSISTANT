@@ -219,6 +219,8 @@ export const DataViz: React.FC<DataVizProps> = ({
                         data={data}
                         maxHeight="400px"
                         emptyMessage="Nenhum dado encontrado"
+                        hideIdColumns={true}
+                        smartFormatting={true}
                     />
                 )}
             </div>

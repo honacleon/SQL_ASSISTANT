@@ -28,6 +28,7 @@ interface EnvironmentConfig {
   isDevelopment: boolean;
   anthropicApiKey?: string;
   openaiApiKey?: string;
+  geminiApiKey?: string;
 }
 
 /**
@@ -58,15 +59,15 @@ export function loadConfig(): EnvironmentConfig {
   // Validate critical Supabase credentials
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const supabaseAnonKey = requireEnv('SUPABASE_ANON_KEY');
-  
+
   // Get AI provider keys (at least one must be present)
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  
+
   // Determine which provider to use
   let aiProvider: 'openai' | 'anthropic';
   let aiApiKey: string;
-  
+
   if (anthropicApiKey) {
     aiProvider = 'anthropic';
     aiApiKey = anthropicApiKey;
@@ -80,7 +81,7 @@ export function loadConfig(): EnvironmentConfig {
   }
 
   const nodeEnv = getEnv('NODE_ENV', 'development');
-  
+
   return {
     supabase: {
       url: supabaseUrl,
@@ -101,6 +102,7 @@ export function loadConfig(): EnvironmentConfig {
     isDevelopment: nodeEnv === 'development',
     anthropicApiKey,
     openaiApiKey,
+    geminiApiKey: process.env.GEMINI_API_KEY,
   };
 }
 

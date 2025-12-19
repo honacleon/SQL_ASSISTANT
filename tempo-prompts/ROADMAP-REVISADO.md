@@ -17,8 +17,10 @@
 |------|------|--------|
 | 1 | Fundação Premium | ✅ Concluída |
 | 2 | Experiência Conversacional | ✅ Concluída |
-| 3 | Visualização de Dados | 🎯 Próxima |
-| 3.5 | IA Conversacional | ⏳ Aguardando |
+| 3 | Visualização de Dados | ✅ Concluída |
+| **3.5** | **Smart Response (Formatação)** | 🎯 **Próxima** |
+| **3.6** | **Narrativa + Insights** | ⏳ Aguardando |
+| **3.7** | **Intelligence Layer** | ⏳ Aguardando |
 | 4 | Autenticação + RLS | ⏳ Aguardando |
 | 5 | CSV Upload + Isolamento | ⏳ Aguardando |
 | 6 | Knowledge Base + Cache | ⏳ Aguardando |
@@ -35,27 +37,48 @@ Visual premium + experiência conversacional com abas.
 
 ---
 
-### 🎯 Fase 3: Visualização de Dados
+### ✅ Fase 3: Visualização de Dados (CONCLUÍDA)
 **Objetivo:** Gráficos interativos e exportação
 
-| Item | Descrição |
-|------|-----------|
-| Recharts | Bar, Line, Pie charts |
-| Chart suggester | Sugestão automática de tipo |
-| Exportação | CSV, Excel, JSON, PNG, PDF |
-| DataViz | Toggle gráfico/tabela |
+| Item | Descrição | Status |
+|------|-----------|--------|
+| Recharts | Bar, Line, Pie charts | ✅ |
+| Chart suggester | Sugestão automática de tipo | ✅ |
+| Exportação | CSV, Excel, JSON, PNG, PDF | ✅ |
+| DataViz | Toggle gráfico/tabela | ✅ |
 
 ---
 
-### 🎯 Fase 3.5: IA Conversacional (NOVA)
-**Objetivo:** Resolver dores do chat "engessado"
+### 🎯 Fase 3.5: Smart Response (Formatação)
+**Objetivo:** Transformar dados brutos em informação bonita
 
 | Item | Descrição |
 |------|-----------|
-| JOINs | Melhorar cruzamento de tabelas |
-| Contexto | Memória mais robusta |
-| Naturalidade | Respostas menos "robóticas" |
-| Sugestões | Baseadas em histórico |
+| Data Formatter | Cents→R$, Status→emoji, Dates→DD/MM |
+| Follow-ups | 2 sugestões contextuais inteligentes |
+| UI Enhancement | Botões clicáveis para follow-ups |
+
+---
+
+### 🎯 Fase 3.6: Narrativa + Insights
+**Objetivo:** Transformar dados em história + insights
+
+| Item | Descrição |
+|------|-----------|
+| Response Narrator | Resumo natural ANTES do gráfico |
+| Insight Generator | 2-3 insights automáticos com ícones |
+| Stats Integration | Total, média, mín, máx nos resumos |
+
+---
+
+### 🎯 Fase 3.7: Intelligence Layer
+**Objetivo:** Queries mais precisas e responses otimizados
+
+| Item | Descrição |
+|------|-----------|
+| Intent Classifier | Regex grátis (AGGREGATION, TREND, etc) |
+| Chart por Intent | Gráfico certo para cada tipo |
+| Prompt Engineering | Otimizado por tipo de pergunta |
 
 ---
 

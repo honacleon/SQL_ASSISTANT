@@ -9,6 +9,7 @@ import { aiService, databaseService } from '../services';
 import { chatSessionService } from '../services/chat-session.service';
 import { contextMemoryService } from '../services/context-memory.service';
 import { quickResponsesService } from '../services/quick-responses.service';
+import { followUpSuggester } from '../services/follow-up-suggester';
 import { logger } from '../config/logger';
 import { chatMessageSchema, validateSessionIdParam } from '../validators/chat.validator';
 import type {
@@ -528,6 +529,24 @@ router.post('/message', async (req: Request, res: Response) => {
       }
     }
 
+    // 💡 FOLLOW-UP SUGGESTER: Gerar sugestões contextuais inteligentes
+    let followUpSuggestions: string[] = [];
+    if (queryResult && nlResult.sql && !nlResult.requiresClarification) {
+      try {
+        const suggesterResult = await followUpSuggester.generateFollowUps({
+          sql: nlResult.sql,
+          tables: nlResult.suggestedTable ? [nlResult.suggestedTable] : [],
+          rowCount: queryResult.data?.length || 0,
+          originalQuestion: request.message,
+          columns: queryResult.data?.[0] ? Object.keys(queryResult.data[0]) : undefined,
+        });
+        followUpSuggestions = suggesterResult.suggestions;
+        logger.info(`💡 Follow-ups gerados (${suggesterResult.source}):`, followUpSuggestions);
+      } catch (suggesterError) {
+        logger.warn('Follow-up suggester failed:', suggesterError);
+      }
+    }
+
     // Criar mensagem do assistente
     const assistantMessage: ChatMessage = {
       id: uuidv4(),
@@ -540,10 +559,10 @@ router.post('/message', async (req: Request, res: Response) => {
         tableUsed: nlResult.suggestedTable || undefined,
         confidence: nlResult.confidence,
         executionTime: Date.now() - startTime,
-        count: executedCount,
-        listedValues,
         // Dados estruturados para visualização em gráficos (limite de 50 registros)
-        data: queryResult?.data?.slice(0, 50) as Record<string, unknown>[] | undefined
+        data: queryResult?.data?.slice(0, 50) as Record<string, unknown>[] | undefined,
+        // 💡 Sugestões de follow-up geradas pelo LLM
+        followUpSuggestions: followUpSuggestions.length > 0 ? followUpSuggestions : undefined,
       }
     };
 

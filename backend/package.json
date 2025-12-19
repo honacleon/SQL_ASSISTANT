@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-assistant/shared": "file:../shared",
     "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.34.0",
     "@supabase/supabase-js": "^2.45.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

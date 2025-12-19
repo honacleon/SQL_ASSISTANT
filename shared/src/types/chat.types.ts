@@ -22,6 +22,8 @@ export interface ChatMessage {
     count?: number;
     /** Dados estruturados da resposta para visualização em gráficos */
     data?: Record<string, unknown>[];
+    /** Sugestões de follow-up geradas por IA */
+    followUpSuggestions?: string[];
   };
 }
 
