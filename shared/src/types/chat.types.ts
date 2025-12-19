@@ -24,6 +24,15 @@ export interface ChatMessage {
     data?: Record<string, unknown>[];
     /** Sugestões de follow-up geradas por IA */
     followUpSuggestions?: string[];
+    /** Narrativa conversacional gerada por IA */
+    narrative?: string;
+    /** Insights acionáveis gerados por IA */
+    insights?: Array<{
+      title: string;
+      description: string;
+      type: 'positive' | 'warning' | 'neutral';
+      icon: string;
+    }>;
   };
 }
 

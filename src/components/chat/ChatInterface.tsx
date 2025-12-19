@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { TypingIndicator } from './TypingIndicator';
+import { InsightsList } from './InsightCard';
 import { DataViz } from '@/components/data';
 import { cn } from '@/lib/utils';
 import { Send, Trash2, Bot, User, Loader2, Database } from 'lucide-react';
@@ -169,6 +170,15 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestio
           )}
         </div>
 
+        {/* Narrativa - ANTES do gráfico/tabela */}
+        {!isUser && message.metadata?.narrative && (
+          <div className="mt-2 p-2.5 rounded-lg bg-gold-400/5 border border-gold-400/20">
+            <p className="text-sm text-foreground/90 leading-relaxed">
+              {message.metadata.narrative}
+            </p>
+          </div>
+        )}
+
         {/* Visualização de dados - quando houver dados estruturados */}
         {!isUser && message.metadata?.data && message.metadata.data.length > 0 && (
           <div className="mt-2 w-full" style={{ minWidth: '400px', width: '100%' }}>
@@ -178,6 +188,11 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestio
               title={message.metadata.tableUsed || 'dados'}
             />
           </div>
+        )}
+
+        {/* Insights - APÓS o gráfico/tabela */}
+        {!isUser && message.metadata?.insights && message.metadata.insights.length > 0 && (
+          <InsightsList insights={message.metadata.insights} />
         )}
 
         {/* Sugestões clicáveis - apenas para mensagens do assistente */}

@@ -10,6 +10,8 @@ import { chatSessionService } from '../services/chat-session.service';
 import { contextMemoryService } from '../services/context-memory.service';
 import { quickResponsesService } from '../services/quick-responses.service';
 import { followUpSuggester } from '../services/follow-up-suggester';
+import { responseNarrator } from '../services/response-narrator';
+import { insightGenerator } from '../services/insight-generator';
 import { logger } from '../config/logger';
 import { chatMessageSchema, validateSessionIdParam } from '../validators/chat.validator';
 import type {
@@ -547,6 +549,50 @@ router.post('/message', async (req: Request, res: Response) => {
       }
     }
 
+    // 📖 RESPONSE NARRATOR: Gerar narrativa conversacional
+    let narrative: string | undefined;
+    if (queryResult && queryResult.data && queryResult.data.length > 0 && !nlResult.requiresClarification) {
+      try {
+        const stats = responseNarrator.calculateStatistics(queryResult.data as Record<string, unknown>[]);
+        const narratorResult = await responseNarrator.generateNarrative({
+          question: request.message,
+          rowCount: queryResult.data.length,
+          columns: Object.keys(queryResult.data[0]),
+          sampleData: queryResult.data.slice(0, 5) as Record<string, unknown>[],
+          stats,
+          tableName: nlResult.suggestedTable,
+        });
+        narrative = narratorResult.narrative;
+        logger.info(`📖 Narrativa gerada (${narratorResult.source}): ${narrative.substring(0, 100)}...`);
+      } catch (narratorError) {
+        logger.warn('Response narrator failed:', narratorError);
+      }
+    }
+
+    // 💡 INSIGHT GENERATOR: Gerar insights acionáveis
+    let insights: Array<{
+      title: string;
+      description: string;
+      type: 'positive' | 'warning' | 'neutral';
+      icon: string;
+    }> | undefined;
+    if (queryResult && queryResult.data && queryResult.data.length > 0 && !nlResult.requiresClarification) {
+      try {
+        const stats = responseNarrator.calculateStatistics(queryResult.data as Record<string, unknown>[]);
+        const insightResult = await insightGenerator.generateInsights({
+          question: request.message,
+          sampleData: queryResult.data.slice(0, 10) as Record<string, unknown>[],
+          stats,
+          rowCount: queryResult.data.length,
+          tableName: nlResult.suggestedTable,
+        });
+        insights = insightResult.insights.length > 0 ? insightResult.insights : undefined;
+        logger.info(`💡 Insights gerados (${insightResult.source}):`, insights?.map(i => i.title));
+      } catch (insightError) {
+        logger.warn('Insight generator failed:', insightError);
+      }
+    }
+
     // Criar mensagem do assistente
     const assistantMessage: ChatMessage = {
       id: uuidv4(),
@@ -563,6 +609,10 @@ router.post('/message', async (req: Request, res: Response) => {
         data: queryResult?.data?.slice(0, 50) as Record<string, unknown>[] | undefined,
         // 💡 Sugestões de follow-up geradas pelo LLM
         followUpSuggestions: followUpSuggestions.length > 0 ? followUpSuggestions : undefined,
+        // 📖 Narrativa conversacional
+        narrative,
+        // 💡 Insights acionáveis
+        insights,
       }
     };
 

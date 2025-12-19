@@ -18,6 +18,9 @@ interface QuickResponsePattern {
 /**
  * Serviço para respostas rápidas (Fast Path)
  * Detecta perguntas conversacionais e responde sem chamar a IA
+ * 
+ * IMPORTANTE: Esses padrões devem capturar APENAS perguntas conversacionais
+ * simples, NÃO queries que mencionam tabelas específicas ou pedem dados.
  */
 export class QuickResponsesService {
     private patterns: QuickResponsePattern[];
@@ -28,10 +31,11 @@ export class QuickResponsesService {
 
     /**
      * Constrói padrões de perguntas conversacionais
+     * REGRA: Só usar ^ e $ para garantir match exato, evitando falsos positivos
      */
     private buildPatterns(): QuickResponsePattern[] {
         return [
-            // Saudações
+            // Saudações (match exato)
             {
                 pattern: /^(oi|olá|ola|hello|hi|hey|e\s*aí|eai|boa\s*(tarde|noite|dia))[\s!?.]*$/i,
                 response: {
@@ -46,7 +50,7 @@ export class QuickResponsesService {
 
             // Capacidades do sistema
             {
-                pattern: /\b(o\s*que\s*(você|vc)\s*(pode|consegue|sabe)|quais?\s*(são\s*)?suas?\s*(capacidades|funcionalidades|recursos)|como\s*(você|vc)\s*funciona|me\s*ajud[ae])\b/i,
+                pattern: /^(o\s*que\s*(você|vc)\s*(pode|consegue|sabe)|quais?\s*(são\s*)?suas?\s*(capacidades|funcionalidades)|como\s*(você|vc)\s*funciona)[\s!?.]*$/i,
                 response: {
                     content: '🤖 **Minhas capacidades:**\n\n✅ **Consultar dados** (SELECT)\n✅ **Filtrar e buscar** registros\n✅ **Agrupar e agregar** (COUNT, SUM, AVG)\n✅ **Fazer JOINs** entre tabelas\n✅ **Ordenar resultados**\n✅ **Limitar** quantidade de registros\n\n⛔ **Não posso** modificar ou deletar dados (segurança)\n\n💡 **Experimente perguntar:**\n- "Quantos clientes temos?"\n- "Quais são os últimos 5 pedidos?"',
                     suggestions: [
@@ -57,9 +61,11 @@ export class QuickResponsesService {
                 }
             },
 
-            // Listar tabelas
+            // Listar tabelas - MUITO RESTRITIVO
+            // Só captura perguntas EXATAMENTE sobre quais tabelas existem
+            // NÃO captura: "mostre dados da tabela X", "últimos 10 da tabela orders"
             {
-                pattern: /\b(quais?|liste?|mostr[ae]|ver)\b.*(tabelas?|tables?|dados)/i,
+                pattern: /^(quais?|liste?)\s*(são\s*)?(as\s*)?(tabelas?|tables?)(\s*(existem|disponíve[il]s?|tem))?[\s?!.]*$/i,
                 response: {
                     content: '📋 **Para ver as tabelas disponíveis:**\n\nAs tabelas estão listadas na barra lateral esquerda.\n\n💡 **Você pode:**\n- Clicar numa tabela para selecioná-la\n- Perguntar "Quantos registros tem em [tabela]?"\n- Perguntar sobre colunas específicas',
                     suggestions: [
@@ -70,7 +76,7 @@ export class QuickResponsesService {
                 }
             },
 
-            // Agradecer
+            // Agradecer (match exato)
             {
                 pattern: /^(obrigad[oa]|valeu|thanks?|thank\s*you|vlw|tmj)[\s!?.]*$/i,
                 response: {
@@ -83,7 +89,7 @@ export class QuickResponsesService {
                 }
             },
 
-            // Despedida
+            // Despedida (match exato)
             {
                 pattern: /^(tchau|adeus|bye|até\s*(mais|logo)?|flw|falou)[\s!?.]*$/i,
                 response: {
@@ -92,7 +98,7 @@ export class QuickResponsesService {
                 }
             },
 
-            // Ajuda
+            // Ajuda (match exato)
             {
                 pattern: /^(ajuda|help|socorro|como\s*uso)[\s!?.]*$/i,
                 response: {
@@ -114,9 +120,21 @@ export class QuickResponsesService {
     tryQuickResponse(message: string): QuickResponse | null {
         const text = message.trim();
 
-        // Mensagens muito longas provavelmente não são conversacionais
-        if (text.length > 100) {
+        // Mensagens muito longas NÃO são conversacionais
+        if (text.length > 60) {
             return null;
+        }
+
+        // Se menciona uma tabela específica, deixar a IA processar
+        // Detecta padrões como "tabela orders", "da orders", "em customers"
+        if (/\b(tabela|table|da|de|em|na|do)\s+\w{2,}s?\b/i.test(text)) {
+            // Exceção: "quais tabelas" é conversacional
+            if (/^quais?\s*(são\s*)?(as\s*)?tabelas?/i.test(text)) {
+                // Continua para verificar padrões
+            } else {
+                logger.debug(`🧠 Mensagem menciona tabela específica, delegando para IA: "${text}"`);
+                return null;
+            }
         }
 
         for (const { pattern, response } of this.patterns) {
