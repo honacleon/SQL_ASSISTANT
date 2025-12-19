@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, BarChart, LineChart, PieChart } from '@/components/charts';
 import { DataTable, DataTableColumn } from '@/components/data/DataTable';
 import { ExportMenu } from '@/components/data/ExportMenu';
-import { suggestChartType, ChartSuggestion, ChartType } from '@/services/chart-suggester';
+import { suggestChartType, suggestChartByIntent, ChartSuggestion, ChartType, QueryIntent } from '@/services/chart-suggester';
 import { BarChart3, Table2, TrendingUp, PieChartIcon } from 'lucide-react';
 
 interface DataVizProps {
@@ -18,6 +18,8 @@ interface DataVizProps {
     defaultView?: 'chart' | 'table';
     title?: string;
     className?: string;
+    /** Intent classificado pelo backend para seleção inteligente de gráfico */
+    intent?: QueryIntent;
 }
 
 type ViewMode = 'chart' | 'table';
@@ -131,13 +133,14 @@ export const DataViz: React.FC<DataVizProps> = ({
     defaultView,
     title,
     className,
+    intent,
 }) => {
     const chartRef = useRef<HTMLDivElement>(null);
 
-    // Analisa dados e sugere tipo de gráfico
+    // Analisa dados e sugere tipo de gráfico (usando intent se disponível)
     const suggestion = useMemo(
-        () => suggestChartType(data, question),
-        [data, question]
+        () => suggestChartByIntent(data, intent, question),
+        [data, intent, question]
     );
 
     // Determina visualização inicial

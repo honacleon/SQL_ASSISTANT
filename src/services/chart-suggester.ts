@@ -1,9 +1,14 @@
 /**
- * Chart Suggester - Sugere tipo de gráfico baseado nos dados
- * Analisa estrutura e tipos de dados para sugestão inteligente
+ * Chart Suggester - Sugere tipo de gráfico baseado nos dados e intent
+ * Analisa estrutura, tipos de dados e intenção do usuário
  */
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'table' | 'metric';
+
+/**
+ * Intent classificado pelo backend
+ */
+export type QueryIntent = 'data_retrieval' | 'aggregation' | 'filtering' | 'trend' | 'comparison' | 'exploratory';
 
 export interface ChartSuggestion {
     type: ChartType;
@@ -253,6 +258,126 @@ export function suggestChartType(
         reason: 'Dados complexos - tabela é mais adequada',
         confidence: 0.5,
     };
+}
+
+/**
+ * Sugere tipo de gráfico baseado no intent do usuário
+ * Intent tem prioridade sobre análise heurística de dados
+ */
+export function suggestChartByIntent(
+    data: unknown[],
+    intent?: QueryIntent,
+    question?: string
+): ChartSuggestion {
+    // Se não tem intent, usar lógica padrão
+    if (!intent) {
+        return suggestChartType(data, question);
+    }
+
+    const typedData = Array.isArray(data) && data.length > 0
+        ? data as Record<string, unknown>[]
+        : [];
+
+    if (typedData.length === 0) {
+        return {
+            type: 'table',
+            xKey: '',
+            yKey: '',
+            reason: 'Dados vazios',
+            confidence: 0,
+        };
+    }
+
+    const columns = Object.keys(typedData[0]);
+    const xResult = findBestXKey(typedData, columns);
+    const yKey = findBestYKey(typedData, columns, xResult?.key) || '';
+
+    // TREND → sempre Line (com área)
+    if (intent === 'trend') {
+        if (xResult) {
+            return {
+                type: 'line',
+                xKey: xResult.key,
+                yKey,
+                reason: 'Intent TREND: gráfico de linha é ideal para tendências',
+                confidence: 0.95,
+            };
+        }
+    }
+
+    // AGGREGATION → Pie se <= 6 categorias, Bar caso contrário
+    if (intent === 'aggregation') {
+        if (xResult && yKey) {
+            const uniqueCategories = countUniqueValues(typedData.map(row => row[xResult.key]));
+
+            if (uniqueCategories <= 6) {
+                return {
+                    type: 'pie',
+                    xKey: xResult.key,
+                    yKey,
+                    reason: 'Intent AGGREGATION: poucas categorias - pizza/donut',
+                    confidence: 0.9,
+                };
+            }
+
+            return {
+                type: 'bar',
+                xKey: xResult.key,
+                yKey,
+                reason: 'Intent AGGREGATION: múltiplas categorias - barras',
+                confidence: 0.9,
+            };
+        }
+    }
+
+    // COMPARISON → Bar (agrupado idealmente)
+    if (intent === 'comparison') {
+        if (xResult && yKey) {
+            return {
+                type: 'bar',
+                xKey: xResult.key,
+                yKey,
+                reason: 'Intent COMPARISON: gráfico de barras para comparação',
+                confidence: 0.9,
+            };
+        }
+    }
+
+    // FILTERING ou DATA_RETRIEVAL → Table, a menos que tenha série temporal
+    if (intent === 'filtering' || intent === 'data_retrieval') {
+        // Se tem dados temporais, usar linha
+        if (xResult?.isDate && yKey) {
+            return {
+                type: 'line',
+                xKey: xResult.key,
+                yKey,
+                reason: 'Dados com série temporal - gráfico de linha',
+                confidence: 0.8,
+            };
+        }
+
+        return {
+            type: 'table',
+            xKey: '',
+            yKey: '',
+            reason: 'Intent DATA/FILTERING: tabela para visão detalhada',
+            confidence: 0.85,
+        };
+    }
+
+    // EXPLORATORY → Table
+    if (intent === 'exploratory') {
+        return {
+            type: 'table',
+            xKey: '',
+            yKey: '',
+            reason: 'Intent EXPLORATORY: tabela para exploração de dados',
+            confidence: 0.85,
+        };
+    }
+
+    // Fallback: usar lógica padrão
+    return suggestChartType(data, question);
 }
 
 export default suggestChartType;

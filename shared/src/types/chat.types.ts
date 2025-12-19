@@ -20,6 +20,8 @@ export interface ChatMessage {
     confidence?: number;
     executionTime?: number;
     count?: number;
+    /** Intent classificado da pergunta */
+    intent?: 'data_retrieval' | 'aggregation' | 'filtering' | 'trend' | 'comparison' | 'exploratory';
     /** Dados estruturados da resposta para visualização em gráficos */
     data?: Record<string, unknown>[];
     /** Sugestões de follow-up geradas por IA */

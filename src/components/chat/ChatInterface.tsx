@@ -186,6 +186,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, index = 0, onSuggestio
               data={message.metadata.data}
               question={message.content}
               title={message.metadata.tableUsed || 'dados'}
+              intent={message.metadata.intent}
             />
           </div>
         )}

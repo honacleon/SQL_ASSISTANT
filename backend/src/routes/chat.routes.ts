@@ -12,6 +12,7 @@ import { quickResponsesService } from '../services/quick-responses.service';
 import { followUpSuggester } from '../services/follow-up-suggester';
 import { responseNarrator } from '../services/response-narrator';
 import { insightGenerator } from '../services/insight-generator';
+import { classifyIntent, QueryIntent } from '../services/intent-classifier';
 import { logger } from '../config/logger';
 import { chatMessageSchema, validateSessionIdParam } from '../validators/chat.validator';
 import type {
@@ -123,6 +124,13 @@ router.post('/message', async (req: Request, res: Response) => {
 
     // Usar mensagem resolvida (com contexto injetado)
     const messageToProcess = contextResolution.resolvedMessage;
+
+    // 🎯 INTENT CLASSIFIER: Classificar intenção do usuário (custo $0)
+    const intentResult = classifyIntent(messageToProcess);
+    logger.info(`🎯 Intent classificado: ${intentResult.intent}`, {
+      confidence: intentResult.confidence,
+      keywords: intentResult.matchedKeywords
+    });
 
     // ⚡ FAST PATH: Tentar resposta rápida sem IA
     const quickResponse = quickResponsesService.tryQuickResponse(messageToProcess);
@@ -605,6 +613,8 @@ router.post('/message', async (req: Request, res: Response) => {
         tableUsed: nlResult.suggestedTable || undefined,
         confidence: nlResult.confidence,
         executionTime: Date.now() - startTime,
+        // 🎯 Intent classificado
+        intent: intentResult.intent,
         // Dados estruturados para visualização em gráficos (limite de 50 registros)
         data: queryResult?.data?.slice(0, 50) as Record<string, unknown>[] | undefined,
         // 💡 Sugestões de follow-up geradas pelo LLM
