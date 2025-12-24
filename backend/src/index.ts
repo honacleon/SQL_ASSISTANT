@@ -7,7 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import { config, logConfig } from './config/env.config';
 import { logger } from './config/logger';
-import { authenticateApiKey, requestLogger } from './middleware';
+import { authMiddleware, authenticateApiKey, requestLogger } from './middleware';
 import { dataRoutes, healthRoutes, queryRoutes, chatRoutes, sessionsRoutes } from './routes';
 import { chatSessionService } from './services/chat-session.service';
 
@@ -21,11 +21,12 @@ app.use(requestLogger);
 // Public routes
 app.use('/api/health', healthRoutes);
 
-// Protected routes (if API_KEY is configured)
-app.use('/api/data', authenticateApiKey, dataRoutes);
-app.use('/api/data/query', authenticateApiKey, queryRoutes);
-app.use('/api/chat', authenticateApiKey, chatRoutes);
-app.use('/api/sessions', authenticateApiKey, sessionsRoutes);
+// Protected routes (Switching to RLS/Auth middleware)
+// Note: We can chain them or choose one. For Phase 4, we enforce Supabase Auth.
+app.use('/api/data', authMiddleware, dataRoutes);
+app.use('/api/data/query', authMiddleware, queryRoutes);
+app.use('/api/chat', authMiddleware, chatRoutes);
+app.use('/api/sessions', authMiddleware, sessionsRoutes);
 
 // Root route
 app.get('/', (_req, res) => {

@@ -4,6 +4,7 @@
  */
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { supabase } from '../context/AuthContext';
 import type {
   TableInfo,
   ColumnInfo,
@@ -50,14 +51,24 @@ const apiClient: AxiosInstance = axios.create({
 
 /**
  * Interceptor de Request
- * Adiciona API Key se configurada
+ * Adiciona API Key se configurada e Token JWT do Supabase
  */
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     const apiKey = import.meta.env.VITE_API_KEY;
 
     if (apiKey && config.headers) {
       config.headers['X-API-Key'] = apiKey;
+    }
+
+    // Add Supabase JWT token for authentication
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token && config.headers) {
+        config.headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+    } catch (error) {
+      console.warn('Failed to get auth session:', error);
     }
 
     return config;

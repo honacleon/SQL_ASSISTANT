@@ -18,11 +18,11 @@
 | 1 | Fundação Premium | ✅ Concluída |
 | 2 | Experiência Conversacional | ✅ Concluída |
 | 3 | Visualização de Dados | ✅ Concluída |
-| **3.5** | **Smart Response (Formatação)** | 🎯 **Próxima** |
-| **3.6** | **Narrativa + Insights** | ⏳ Aguardando |
-| **3.7** | **Intelligence Layer** | ⏳ Aguardando |
-| 4 | Autenticação + RLS | ⏳ Aguardando |
-| 5 | CSV Upload + Isolamento | ⏳ Aguardando |
+| 3.5 | Smart Response (Formatação) | ✅ Concluída |
+| 3.6 | Narrativa + Insights | ✅ Concluída |
+| 3.7 | Intelligence Layer | ✅ Concluída |
+| 4 | Autenticação + RLS | ✅ Concluída |
+| **5** | **CSV Upload + Isolamento** | 🎯 **Próxima** |
 | 6 | Knowledge Base + Cache | ⏳ Aguardando |
 | 7 | Queries Salvas | ⏳ Aguardando |
 | 8 | Dashboards | ⏳ Aguardando |

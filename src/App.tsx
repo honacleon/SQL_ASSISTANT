@@ -1,19 +1,40 @@
+// App.tsx
 import { Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./components/home";
 import DashboardPage from "./pages/DashboardPage";
+import { AuthPage } from "./pages/AuthPage"; // Import AuthPage
+import { AuthProvider } from "./context/AuthContext"; // Import AuthProvider
+import { ProtectedRoute } from "./components/ProtectedRoute"; // Import ProtectedRoute
 import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
 
 function App() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<p>Loading...</p>}>
-        <>
+        <AuthProvider>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Catch all route - redirect to home (which will redirect to auth if needed) */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </>
+        </AuthProvider>
       </Suspense>
     </ErrorBoundary>
   );

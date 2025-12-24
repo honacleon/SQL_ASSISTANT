@@ -23,9 +23,11 @@
     "joi": "^18.0.2",
     "openai": "^6.10.0",
     "uuid": "^13.0.0",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.14.2",
     "tsx": "^4.7.1",
     "typescript": "^5.8.2"

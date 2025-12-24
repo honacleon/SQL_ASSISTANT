@@ -3,4 +3,5 @@
  */
 
 export { authenticateApiKey } from './auth.middleware';
+export { authMiddleware } from './auth.middleware';
 export { requestLogger } from './requestLogger.middleware';

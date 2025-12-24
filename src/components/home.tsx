@@ -1,13 +1,22 @@
-import { Database, Brain, Code2, Zap, Sparkles, ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Database, Brain, Code2, Zap, Sparkles, ArrowRight, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fadeInUp, staggerContainer, cardEntrance } from "@/styles/animations";
+import { useAuth } from "@/context/AuthContext";
 
 function Home() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Decorative background elements */}
@@ -19,14 +28,32 @@ function Home() {
       {/* Header */}
       <header className="relative border-b border-gold-400/10 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-gradient-to-br from-gold-400 to-gold-600 shadow-md shadow-gold-500/20">
-              <Database className="h-4 w-4 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-gradient-to-br from-gold-400 to-gold-600 shadow-md shadow-gold-500/20">
+                <Database className="h-4 w-4 text-white" />
+              </div>
+              <h1 className="text-xl font-semibold">AI Data Assistant</h1>
+              <Badge variant="outline" className="ml-2 border-gold-400/30 text-gold-400">
+                Premium Edition
+              </Badge>
             </div>
-            <h1 className="text-xl font-semibold">AI Data Assistant</h1>
-            <Badge variant="outline" className="ml-2 border-gold-400/30 text-gold-400">
-              Premium Edition
-            </Badge>
+            {user && (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {user.email}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-muted-foreground hover:text-red-500"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Sair
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </header>
