@@ -153,7 +153,7 @@ function SidebarTablesContent({
                   "h-3 w-3 mr-2 flex-shrink-0 transition-colors",
                   selectedTable === table.name ? "text-gold-400" : "text-muted-foreground group-hover:text-gold-400"
                 )} />
-                <span className="truncate">{table.name}</span>
+                <span className="truncate">{(table as any).displayName || table.name}</span>
               </Button>
               <Button
                 variant="outline"

@@ -11,8 +11,8 @@ import { v4 as uuidv4 } from 'uuid';
 // Constants
 export const CSV_LIMITS = {
     MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
-    MAX_ROWS: 100_000,
-    MAX_COLUMNS: 50,
+    MAX_ROWS: 1_000_000,
+    MAX_COLUMNS: 100,
     MAX_TABLES_PER_ORG: 10,
 };
 
@@ -23,6 +23,7 @@ export interface CsvUploadMetadata {
     userId: string;
     filename: string;
     originalFilename: string;
+    displayName: string;
     tableName: string;
     rowCount: number;
     columnCount: number;
@@ -55,6 +56,7 @@ export interface UploadOptions {
     encoding?: string;
     delimiter?: string;
     expiresIn?: '24h' | '7d' | '30d' | 'never';
+    displayName?: string;
 }
 
 /**
@@ -334,12 +336,14 @@ class CsvUploadService {
             }
 
             // Create metadata record (status: processing)
+            const displayName = options.displayName || originalFilename;
             const { error: insertError } = await supabase.from('csv_uploads').insert({
                 id: uploadId,
                 org_id: orgId,
                 user_id: userId,
                 filename: tableName,
                 original_filename: originalFilename,
+                display_name: displayName,
                 table_name: tableName,
                 row_count: parseResult.rowCount,
                 column_count: parseResult.columnCount,
@@ -375,6 +379,7 @@ class CsvUploadService {
                 userId,
                 filename: tableName,
                 originalFilename,
+                displayName,
                 tableName,
                 rowCount: parseResult.rowCount,
                 columnCount: parseResult.columnCount,
@@ -515,11 +520,20 @@ class CsvUploadService {
      * List CSV uploads for organization
      */
     async listUploads(orgId: string): Promise<CsvUploadMetadata[]> {
+        logger.debug('listUploads called', { orgId });
+
         const { data, error } = await supabase
             .from('csv_uploads')
             .select('*')
             .eq('org_id', orgId)
             .order('created_at', { ascending: false });
+
+        logger.debug('listUploads query result', {
+            orgId,
+            count: data?.length || 0,
+            error: error?.message,
+            rawData: data?.map(d => ({ id: d.id, status: d.status, original_filename: d.original_filename }))
+        });
 
         if (error) {
             logger.error('Error listing uploads', { error });
@@ -532,6 +546,7 @@ class CsvUploadService {
             userId: row.user_id,
             filename: row.filename,
             originalFilename: row.original_filename,
+            displayName: row.display_name || row.original_filename,
             tableName: row.table_name,
             rowCount: row.row_count,
             columnCount: row.column_count,

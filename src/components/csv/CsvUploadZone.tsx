@@ -1,10 +1,12 @@
 // src/components/csv/CsvUploadZone.tsx
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileSpreadsheet, X, Loader2, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, X, Loader2, CheckCircle2, AlertCircle, Trash2, File } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -13,6 +15,7 @@ import { apiClient } from '@/services/api';
 interface CsvUpload {
     id: string;
     originalFilename: string;
+    displayName: string;
     tableName: string;
     rowCount: number;
     columnCount: number;
@@ -37,6 +40,8 @@ export const CsvUploadZone = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [expiresIn, setExpiresIn] = useState<string>('7d');
+    const [displayName, setDisplayName] = useState<string>('');
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
 
     // Load uploads on mount
     React.useEffect(() => {
@@ -66,14 +71,24 @@ export const CsvUploadZone = () => {
         if (acceptedFiles.length === 0) return;
 
         const file = acceptedFiles[0];
+        // Set default name from file name (without extension)
+        const defaultName = file.name.replace(/\.[^.]+$/, '').substring(0, 50);
+        setDisplayName(defaultName);
+        setPendingFile(file);
+    }, []);
+
+    const handleUpload = async () => {
+        if (!pendingFile) return;
+
         setUploadError(null);
         setIsUploading(true);
         setUploadProgress(0);
 
         try {
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', pendingFile);
             formData.append('expiresIn', expiresIn);
+            formData.append('displayName', displayName.trim() || pendingFile.name.replace(/\.[^.]+$/, ''));
 
             // Simulate progress
             const progressInterval = setInterval(() => {
@@ -89,14 +104,18 @@ export const CsvUploadZone = () => {
 
             if (response.data.success) {
                 await loadUploads();
-                setTimeout(() => setUploadProgress(0), 1000);
+                setTimeout(() => {
+                    setUploadProgress(0);
+                    setPendingFile(null);
+                    setDisplayName('');
+                }, 1000);
             }
         } catch (error: any) {
             setUploadError(error.response?.data?.error || error.message || 'Erro no upload');
         } finally {
             setIsUploading(false);
         }
-    }, [expiresIn]);
+    };
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -173,6 +192,52 @@ export const CsvUploadZone = () => {
                     )}
                 </div>
 
+                {/* File Selected - Configure Name */}
+                {pendingFile && !isUploading && (
+                    <div className="p-4 rounded-lg border border-gold-400/30 bg-gold-400/5 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <File className="h-8 w-8 text-gold-400" />
+                            <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{pendingFile.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {(pendingFile.size / 1024).toFixed(1)} KB
+                                </p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setPendingFile(null); setDisplayName(''); }}
+                                className="text-muted-foreground hover:text-red-500"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="displayName">Nome da Tabela</Label>
+                            <Input
+                                id="displayName"
+                                placeholder="Ex: Vendas 2024"
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                className="border-border/50 focus:border-gold-400/50"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Este nome aparecerá na lista de tabelas disponíveis.
+                            </p>
+                        </div>
+
+                        <Button
+                            onClick={handleUpload}
+                            className="w-full bg-gold-400 hover:bg-gold-500 text-black font-medium"
+                            disabled={!displayName.trim()}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Enviar Arquivo
+                        </Button>
+                    </div>
+                )}
+
                 {/* Options */}
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -228,7 +293,7 @@ export const CsvUploadZone = () => {
                                     {upload.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />}
 
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{upload.originalFilename}</p>
+                                        <p className="font-medium truncate">{upload.displayName || upload.originalFilename}</p>
                                         <p className="text-xs text-muted-foreground">
                                             {upload.rowCount?.toLocaleString()} linhas • {upload.columnCount} colunas • {formatDate(upload.createdAt)}
                                         </p>

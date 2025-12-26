@@ -62,12 +62,14 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
             encoding: req.body.encoding || 'UTF-8',
             delimiter: req.body.delimiter,
             expiresIn: req.body.expiresIn as '24h' | '7d' | '30d' | 'never',
+            displayName: req.body.displayName?.trim() || req.file.originalname,
         };
 
         logger.info('CSV upload started', {
             userId: user.id,
             orgId: user.orgId,
             filename: req.file.originalname,
+            displayName: options.displayName,
             size: req.file.size,
         });
 

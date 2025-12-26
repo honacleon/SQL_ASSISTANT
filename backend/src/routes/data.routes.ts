@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { databaseService } from '../services';
 import { logger } from '../config/logger';
+import { supabase } from '../config/auth.config';
 import type { TableSummary, ColumnInfo } from '@ai-assistant/shared';
 
 const router = Router();
@@ -17,17 +18,41 @@ const router = Router();
 router.get('/tables', async (_req: Request, res: Response) => {
   try {
     const tables: TableSummary[] = await databaseService.getTables();
-    
+
+    // Enrich CSV tables with display names from csv_uploads
+    const csvTables = tables.filter(t => t.name.startsWith('csv_'));
+    let displayNameMap: Record<string, string> = {};
+
+    if (csvTables.length > 0) {
+      const { data: csvUploads } = await supabase
+        .from('csv_uploads')
+        .select('table_name, display_name, original_filename')
+        .in('table_name', csvTables.map(t => t.name));
+
+      if (csvUploads) {
+        displayNameMap = csvUploads.reduce((acc, upload) => {
+          acc[upload.table_name] = upload.display_name || upload.original_filename;
+          return acc;
+        }, {} as Record<string, string>);
+      }
+    }
+
+    // Add displayName to tables
+    const enrichedTables = tables.map(table => ({
+      ...table,
+      displayName: displayNameMap[table.name] || table.name,
+    }));
+
     res.json({
       success: true,
-      data: tables,
-      count: tables.length,
+      data: enrichedTables,
+      count: enrichedTables.length,
     });
   } catch (error) {
     logger.error('Error fetching tables', {
       error: error instanceof Error ? error.message : String(error),
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to fetch tables',
