@@ -3,9 +3,11 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTables, useTableData, useChat, useShortcuts, useSessionHistory } from '@/hooks';
 import { useTabs } from '@/hooks/useTabs';
 import { useTabShortcuts } from '@/hooks/useTabShortcuts';
+import { useAuth } from '@/context/AuthContext';
 import { DataTable, DataTableColumn, SortDirection } from '@/components/data';
 import { ChatInterface, SessionList } from '@/components/chat';
 import { TabBar } from '@/components/chat/TabBar';
@@ -18,8 +20,9 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
-import { Database, Table2, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react';
+import { Database, Table2, AlertCircle, RefreshCw, MessageSquare, Upload, LogOut } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { CsvUploadZone } from '@/components/csv/CsvUploadZone';
 import type { ColumnInfo } from '@ai-assistant/shared';
 import toast from 'react-hot-toast';
 
@@ -205,7 +208,7 @@ function Sidebar({
     <Card className="w-64 h-full flex flex-col border-r border-gold-400/10 rounded-none bg-background/95">
       <Tabs defaultValue="tables" className="flex-1 flex flex-col">
         <div className="px-3 pt-3">
-          <TabsList className="grid w-full grid-cols-2 bg-secondary/50">
+          <TabsList className="grid w-full grid-cols-3 bg-secondary/50">
             <TabsTrigger
               value="tables"
               className="text-xs data-[state=active]:bg-gold-400/20 data-[state=active]:text-gold-400"
@@ -219,6 +222,13 @@ function Sidebar({
             >
               <MessageSquare className="h-3 w-3 mr-1" />
               Conversas
+            </TabsTrigger>
+            <TabsTrigger
+              value="upload"
+              className="text-xs data-[state=active]:bg-gold-400/20 data-[state=active]:text-gold-400"
+            >
+              <Upload className="h-3 w-3 mr-1" />
+              Upload
             </TabsTrigger>
           </TabsList>
         </div>
@@ -246,6 +256,10 @@ function Sidebar({
             onCreateSession={onCreateSession}
             onDeleteSession={onDeleteSession}
           />
+        </TabsContent>
+
+        <TabsContent value="upload" className="flex-1 m-0 overflow-auto p-2">
+          <CsvUploadZone />
         </TabsContent>
       </Tabs>
     </Card>
@@ -363,6 +377,9 @@ function DataPanel({
 // ==================== Main Component ====================
 
 export function DashboardPage() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
   // ==================== Tables Hook ====================
   const {
     tables,
@@ -383,6 +400,12 @@ export function DashboardPage() {
     addMessage: persistMessage,
     updateSessionTitle,
   } = useSessionHistory();
+
+  // ==================== Logout Handler ====================
+  const handleLogout = useCallback(async () => {
+    await logout();
+    navigate('/auth', { replace: true });
+  }, [logout, navigate]);
 
   // ==================== Selected Table State ====================
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
@@ -644,6 +667,24 @@ export function DashboardPage() {
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Header with User Info and Logout */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/95">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {user?.email}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2 text-muted-foreground hover:text-red-500"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </div>
+
         {/* Tab Bar */}
         <TabBar
           tabs={tabs}

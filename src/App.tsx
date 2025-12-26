@@ -3,9 +3,10 @@ import { Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./components/home";
 import DashboardPage from "./pages/DashboardPage";
-import { AuthPage } from "./pages/AuthPage"; // Import AuthPage
-import { AuthProvider } from "./context/AuthContext"; // Import AuthProvider
-import { ProtectedRoute } from "./components/ProtectedRoute"; // Import ProtectedRoute
+import { AuthPage } from "./pages/AuthPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
+import { AuthProvider } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route
               path="/"
               element={
@@ -41,3 +43,4 @@ function App() {
 }
 
 export default App;
+

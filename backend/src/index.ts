@@ -8,7 +8,7 @@ import cors from 'cors';
 import { config, logConfig } from './config/env.config';
 import { logger } from './config/logger';
 import { authMiddleware, authenticateApiKey, requestLogger } from './middleware';
-import { dataRoutes, healthRoutes, queryRoutes, chatRoutes, sessionsRoutes } from './routes';
+import { dataRoutes, healthRoutes, queryRoutes, chatRoutes, sessionsRoutes, csvRoutes, organizationRoutes } from './routes';
 import { chatSessionService } from './services/chat-session.service';
 
 const app = express();
@@ -27,6 +27,8 @@ app.use('/api/data', authMiddleware, dataRoutes);
 app.use('/api/data/query', authMiddleware, queryRoutes);
 app.use('/api/chat', authMiddleware, chatRoutes);
 app.use('/api/sessions', authMiddleware, sessionsRoutes);
+app.use('/api/csv', authMiddleware, csvRoutes);
+app.use('/api/organizations', authMiddleware, organizationRoutes);
 
 // Root route
 app.get('/', (_req, res) => {
